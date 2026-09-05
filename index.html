@@ -329,12 +329,8 @@
       <form id="addForm" class="page-card">
         <div class="properties">
           <div class="property-row">
-            <div class="property-label"><span class="property-icon">Aa</span>Prénom</div>
-            <input required id="firstName" type="text" placeholder="Marion" autocomplete="off">
-          </div>
-          <div class="property-row">
             <div class="property-label"><span class="property-icon">Aa</span>Nom</div>
-            <input required id="lastName" type="text" placeholder="Cotillard" autocomplete="off">
+            <input required id="fullName" type="text" placeholder="Marion Cotillard" autocomplete="off">
           </div>
           <div class="property-row">
             <div class="property-label"><span class="property-icon">📅</span>Date</div>
@@ -386,12 +382,8 @@
         </label>
       </div>
       <div class="property-row">
-        <div class="property-label"><span class="property-icon">Aa</span>Prénom</div>
-        <input required id="editFirstName" type="text">
-      </div>
-      <div class="property-row">
         <div class="property-label"><span class="property-icon">Aa</span>Nom</div>
-        <input required id="editLastName" type="text">
+        <input required id="editFullName" type="text">
       </div>
       <div class="property-row">
         <div class="property-label"><span class="property-icon">📅</span>Date</div>
@@ -412,7 +404,7 @@
 <div id="toast" class="toast" hidden></div>
 
 <script>
-  const STORAGE_KEY = 'pokestar_stars_v1';
+  const STORAGE_KEY = 'pokestar_stars_v2';
   const AVATAR_GRADIENTS = [
     ['#FDBB79','#FF6B4A'],
     ['#7EE8CB','#3EC6E0'],
@@ -443,8 +435,7 @@
     const stars = loadStars();
     stars.push({
       id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
-      firstName: star.firstName,
-      lastName: star.lastName,
+      fullName: star.fullName,
       date: star.date,
       description: star.description || '',
       photoUrl: star.photoUrl || null
@@ -465,8 +456,14 @@
   function capitalize(str){
     return str.charAt(0).toUpperCase() + str.slice(1);
   }
-  function generateInitialsAvatar(firstName, lastName, gradient){
-    const initials = ((firstName[0]||'') + (lastName[0]||'')).toUpperCase();
+  function getInitials(fullName){
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    if(parts.length === 0) return '?';
+    if(parts.length === 1) return parts[0].slice(0,2).toUpperCase();
+    return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+  }
+  function generateInitialsAvatar(fullName, gradient){
+    const initials = getInitials(fullName);
     const gid = 'g' + Math.random().toString(36).slice(2,9);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">
       <defs>
@@ -547,25 +544,24 @@
 
   document.getElementById('addForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const firstName = document.getElementById('firstName').value.trim();
-    const lastName = document.getElementById('lastName').value.trim();
+    const fullName = document.getElementById('fullName').value.trim();
     const date = document.getElementById('metDate').value;
     const description = document.getElementById('description').value.trim();
-    if(!firstName || !lastName || !date) return;
+    if(!fullName || !date) return;
 
     const submitBtn = document.getElementById('submitBtn');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Recherche de la photo...';
     showPhotoStatus('Recherche sur Wikipédia...');
 
-    const photoUrl = await searchWikipediaPhoto(`${firstName} ${lastName}`);
+    const photoUrl = await searchWikipediaPhoto(fullName);
 
     if(photoUrl){
-      saveStar({ firstName, lastName, date, description, photoUrl });
+      saveStar({ fullName, date, description, photoUrl });
       resetForm();
-      showToast(`${firstName} ${lastName} a rejoint le Pokédex`);
+      showToast(`${fullName} a rejoint le Pokédex`);
     }else{
-      pendingStar = { firstName, lastName, date, description };
+      pendingStar = { fullName, date, description };
       pendingPhotoDataUrl = null;
       showPhotoStatus('Aucune photo trouvée sur Wikipédia.');
       document.getElementById('manualPhotoZone').hidden = false;
@@ -589,7 +585,7 @@
   document.getElementById('confirmManualBtn').addEventListener('click', () => {
     if(!pendingStar) return;
     saveStar({ ...pendingStar, photoUrl: pendingPhotoDataUrl });
-    const name = `${pendingStar.firstName} ${pendingStar.lastName}`;
+    const name = pendingStar.fullName;
     pendingStar = null; pendingPhotoDataUrl = null;
     resetForm();
     showToast(`${name} a rejoint le Pokédex`);
@@ -602,14 +598,14 @@
 
   // ---------- gallery ----------
   function cardHTML(s){
-    const gradient = hashGradient(s.firstName + s.lastName);
-    const photo = s.photoUrl || generateInitialsAvatar(s.firstName, s.lastName, gradient);
+    const gradient = hashGradient(s.fullName);
+    const photo = s.photoUrl || generateInitialsAvatar(s.fullName, gradient);
     const dateLabel = new Intl.DateTimeFormat('fr-FR', { day:'numeric', month:'short' }).format(new Date(s.date + 'T00:00:00'));
     return `
       <button type="button" class="star-card" data-id="${s.id}">
-        <span class="card-photo-wrap"><img src="${photo}" alt="${escapeHtml(s.firstName)} ${escapeHtml(s.lastName)}" loading="lazy"></span>
+        <span class="card-photo-wrap"><img src="${photo}" alt="${escapeHtml(s.fullName)}" loading="lazy"></span>
         <span class="card-footer">
-          <span class="card-name">${escapeHtml(s.firstName)} ${escapeHtml(s.lastName)}</span>
+          <span class="card-name">${escapeHtml(s.fullName)}</span>
           <span class="card-date">${dateLabel}</span>
         </span>
       </button>
@@ -664,12 +660,11 @@
     editingId = id;
     editingPhotoOverride = null;
 
-    document.getElementById('editFirstName').value = star.firstName;
-    document.getElementById('editLastName').value = star.lastName;
+    document.getElementById('editFullName').value = star.fullName;
     document.getElementById('editDate').value = star.date;
     document.getElementById('editDescription').value = star.description || '';
-    const gradient = hashGradient(star.firstName + star.lastName);
-    document.getElementById('modalPhoto').src = star.photoUrl || generateInitialsAvatar(star.firstName, star.lastName, gradient);
+    const gradient = hashGradient(star.fullName);
+    document.getElementById('modalPhoto').src = star.photoUrl || generateInitialsAvatar(star.fullName, gradient);
 
     document.getElementById('modalOverlay').hidden = false;
   }
@@ -703,8 +698,7 @@
 
     stars[idx] = {
       ...stars[idx],
-      firstName: document.getElementById('editFirstName').value.trim(),
-      lastName: document.getElementById('editLastName').value.trim(),
+      fullName: document.getElementById('editFullName').value.trim(),
       date: document.getElementById('editDate').value,
       description: document.getElementById('editDescription').value.trim(),
       photoUrl: editingPhotoOverride || stars[idx].photoUrl
