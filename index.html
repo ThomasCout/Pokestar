@@ -643,6 +643,8 @@
       case 'auth/user-not-found':
       case 'auth/wrong-password':
       case 'auth/invalid-credential': return 'Email ou mot de passe incorrect.';
+      case 'auth/operation-not-allowed': return "La connexion par email n'est pas activée sur le projet Firebase (Authentication → Sign-in method).";
+      case 'permission-denied': return "Accès refusé par les règles Firestore — vérifie qu'elles sont bien à jour.";
       default: return "Une erreur est survenue. Réessaie.";
     }
   }
@@ -730,14 +732,24 @@
     btn.disabled = true; btn.textContent = 'Création...';
     try{
       const pseudoLower = pseudo.toLowerCase();
-      const taken = await isPseudoTaken(pseudoLower, null);
-      if(taken){ showAuthError('Ce pseudo est déjà pris.'); btn.disabled = false; btn.textContent = 'Créer mon compte'; return; }
+      // On crée d'abord le compte : les règles Firestore exigent d'être connecté
+      // pour pouvoir vérifier si le pseudo est déjà pris.
       const cred = await auth.createUserWithEmailAndPassword(email, password);
+
+      const taken = await isPseudoTaken(pseudoLower, cred.user.uid);
+      if(taken){
+        await cred.user.delete();
+        showAuthError('Ce pseudo est déjà pris.');
+        btn.disabled = false; btn.textContent = 'Créer mon compte';
+        return;
+      }
+
       await db.collection('users').doc(cred.user.uid).set({
         pseudo, pseudoLower, email, createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     }catch(err){
-      showAuthError(authErrorMessage(err.code));
+      console.error('Signup error:', err.code, err.message);
+      showAuthError(authErrorMessage(err.code) + (err.code ? '' : ' (' + err.message + ')'));
     }
     btn.disabled = false; btn.textContent = 'Créer mon compte';
   });
