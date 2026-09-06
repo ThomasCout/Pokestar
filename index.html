@@ -197,7 +197,7 @@
   }
   .month-count{ color: var(--text-lighter); font-weight: 400; }
 
-  .card-grid{ display:grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .card-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 
   .star-card{
     border: 1px solid var(--border); padding:0; text-align:left; background: var(--bg-card);
@@ -267,9 +267,11 @@
 
   [hidden]{ display:none !important; }
 
-  @media (max-width: 720px){ .card-grid{ grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 520px){
-    .card-grid{ grid-template-columns: repeat(2, 1fr); }
+    .card-grid{ grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .card-footer{ padding: 6px 6px 8px; }
+    .card-name{ font-size: 0.7rem; }
+    .card-date{ font-size: 0.64rem; }
     .add-hero h1{ font-size: 1.45rem; }
     .month-header{ top: 96px; }
     main{ padding: 6px 16px 60px; }
