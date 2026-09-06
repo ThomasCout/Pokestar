@@ -589,7 +589,7 @@
   let friendsCache = [];
   let incomingRequests = [];
   let outgoingRequests = [];
-  let unsubStars = null, unsubIncoming = null, unsubOutgoing = null, unsubFriends = null;
+  let unsubStars = null, unsubIncoming = null, unsubOutgoing = null, unsubFriends = null, unsubUserDoc = null;
 
   let pendingStar = null;
   let pendingPhotoDataUrl = null;
@@ -760,7 +760,8 @@
     if(unsubIncoming) unsubIncoming();
     if(unsubOutgoing) unsubOutgoing();
     if(unsubFriends) unsubFriends();
-    unsubStars = unsubIncoming = unsubOutgoing = unsubFriends = null;
+    if(unsubUserDoc) unsubUserDoc();
+    unsubStars = unsubIncoming = unsubOutgoing = unsubFriends = unsubUserDoc = null;
     starsCache = []; friendsCache = []; incomingRequests = []; outgoingRequests = [];
   }
 
@@ -768,17 +769,12 @@
     auth.onAuthStateChanged(async (user) => {
       cleanupListeners();
       if(user){
-        let data = { pseudo: '?', email: user.email };
-        try{
-          const userDoc = await db.collection('users').doc(user.uid).get();
-          if(userDoc.exists) data = userDoc.data();
-        }catch(e){ console.error(e); }
-
-        currentUser = { uid: user.uid, pseudo: data.pseudo, email: user.email };
+        currentUser = { uid: user.uid, pseudo: '…', email: user.email };
         document.getElementById('avatarInitials').textContent = getInitials(currentUser.pseudo);
         document.getElementById('headerActions').hidden = false;
         document.getElementById('syncDot').classList.remove('offline');
 
+        subscribeUserProfile(user.uid);
         subscribeStars();
         subscribeFriendRequests();
         subscribeFriends();
@@ -789,6 +785,16 @@
         switchView('auth');
       }
     });
+  }
+
+  function subscribeUserProfile(uid){
+    unsubUserDoc = db.collection('users').doc(uid).onSnapshot(doc => {
+      if(doc.exists && currentUser){
+        const data = doc.data();
+        currentUser.pseudo = data.pseudo;
+        document.getElementById('avatarInitials').textContent = getInitials(currentUser.pseudo);
+      }
+    }, err => console.error('profile listener error:', err));
   }
 
   function subscribeStars(){
