@@ -86,7 +86,7 @@
   }
   .badge{
     position:absolute; top:-4px; right:-4px;
-    background:#FF3B30; color:#fff; font-size:0.65rem; font-weight:700;
+    background:#FF3B30; color:#fff; font-size:0.65rem; font-weight:700; line-height:1;
     border-radius:999px; min-width:16px; height:16px;
     display:flex; align-items:center; justify-content:center; padding:0 4px;
   }
@@ -104,7 +104,11 @@
     white-space: nowrap;
   }
   .toggle-option.active{ color: #fff; }
-  .toggle-option .toggle-count{ font-weight: 500; opacity: 0.9; font-size: 0.82rem; }
+  .toggle-option .toggle-count{
+    font-weight: 600; font-size: 0.72rem; line-height:1;
+    background: rgba(0,0,0,0.07); border-radius: 999px; padding: 3px 8px;
+  }
+  .toggle-option.active .toggle-count{ background: rgba(255,255,255,0.28); }
   .toggle-indicator{
     position:absolute; top:4px; left:4px; height: calc(100% - 8px); width: calc(50% - 4px);
     background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
@@ -126,8 +130,9 @@
     max-width: 480px; margin: 0 auto;
     background: rgba(255,255,255,0.75); backdrop-filter: blur(8px);
     border: 1px solid var(--border); border-radius: var(--radius-xl);
-    padding: 10px 22px 26px; box-shadow: var(--shadow);
+    padding: 14px 22px 24px; box-shadow: var(--shadow);
   }
+  .page-card + .page-card{ margin-top: 18px; }
 
   .property-row{ display:flex; align-items:center; border-bottom: 1px solid var(--border); padding: 13px 2px; gap: 10px; }
   .property-label{
@@ -193,7 +198,7 @@
   .month-group{ margin-bottom: 34px; }
   .month-header{
     font-size: 0.92rem; font-weight: 600; color: var(--text); margin: 0 0 14px 2px; padding-bottom: 10px;
-    border-bottom: 1px solid var(--border); position: sticky; top: 108px; background: var(--bg); z-index: 5;
+    border-bottom: 1px solid var(--border); position: sticky; top: var(--header-h, 110px); background: var(--bg); z-index: 5;
   }
   .month-count{ color: var(--text-lighter); font-weight: 400; }
 
@@ -227,11 +232,15 @@
   .friend-row:last-child{ border-bottom:none; }
   .friend-name{ font-weight:600; font-size:0.9rem; }
   .friend-actions{ display:flex; gap:6px; }
-  .friend-tag{ font-size:0.8rem; color: var(--text-lighter); font-weight:500; }
+  .friend-tag{
+    font-size:0.78rem; color: var(--text-light); font-weight:600;
+    background: var(--bg-hover); border-radius:999px; padding:6px 12px;
+    white-space:nowrap; flex-shrink:0;
+  }
   .friend-empty{ color: var(--text-lighter); font-size:0.85rem; padding: 8px 2px; }
 
-  .screen-header-row{ max-width:480px; margin:0 auto 8px; display:flex; }
-  .friend-gallery-header{ max-width:820px; margin:0 auto 20px; display:flex; flex-direction:column; gap:10px; }
+  .screen-header-row{ max-width:480px; margin:0 auto; display:flex; }
+  .friend-gallery-header{ max-width:820px; margin:0 auto 24px; display:flex; flex-direction:column; gap:10px; }
   .friend-gallery-header h1{ font-size:1.4rem; font-weight:600; margin:0; }
 
   /* ---------- Modal ---------- */
@@ -256,6 +265,14 @@
   #editForm{ display:flex; flex-direction:column; }
   .modal-actions{ display:flex; gap:8px; justify-content:space-between; margin-top:16px; }
 
+  .view-modal-photo-wrap{ width:96px; height:96px; margin:4px auto 16px; border-radius: var(--radius-lg); overflow:hidden; border:1px solid var(--border); }
+  .view-modal-photo-wrap img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .view-modal-name{ text-align:center; font-size:1.15rem; font-weight:600; margin:0 0 4px; font-family:'Space Grotesk', sans-serif; }
+  .view-modal-date{ text-align:center; color:var(--text-light); font-size:0.85rem; margin:0 0 18px; }
+  .view-modal-description-label{ color: var(--text-light); font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; }
+  .view-modal-description{ font-size:0.92rem; line-height:1.6; color:var(--text); white-space:pre-wrap; margin:0; }
+  .view-modal-description.empty{ color: var(--text-lighter); font-style:italic; }
+
   /* ---------- Toast ---------- */
   .toast{
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -273,7 +290,6 @@
     .card-name{ font-size: 0.7rem; }
     .card-date{ font-size: 0.64rem; }
     .add-hero h1{ font-size: 1.45rem; }
-    .month-header{ top: 96px; }
     main{ padding: 6px 16px 60px; }
     .topbar{ padding: 16px 16px 0; }
     .page-card{ padding: 8px 14px 20px; }
@@ -292,6 +308,7 @@
     <div class="topbar-row">
       <div class="brand"><span class="brand-star">✦</span> Pokéstar <span class="sync-dot" id="syncDot"></span></div>
       <div class="header-actions" id="headerActions" hidden>
+        <button type="button" id="notifBtn" class="icon-btn" title="Notifications">🔔<span class="badge" id="notifBadge" hidden>0</span></button>
         <button type="button" id="friendsBtn" class="icon-btn" title="Amis">👥<span class="badge" id="friendReqBadge" hidden>0</span></button>
         <button type="button" id="profileBtn" class="icon-btn avatar-btn" title="Profil"><span id="avatarInitials">?</span></button>
       </div>
@@ -386,7 +403,7 @@
       </div>
 
       <div class="page-card">
-        <div class="block-label" style="padding:6px 2px 0;">Ajouter un ami</div>
+        <div class="block-label">Ajouter un ami</div>
         <div class="friend-search-row">
           <input type="text" id="friendSearchInput" class="friend-search-input" placeholder="Pseudo de ton ami">
           <button type="button" id="friendSearchBtn" class="btn btn-primary btn-sm">Chercher</button>
@@ -394,13 +411,13 @@
         <div id="friendSearchResults"></div>
       </div>
 
-      <div class="page-card" style="margin-top:18px;">
-        <div class="block-label" style="padding:6px 2px 10px;">Demandes reçues</div>
+      <div class="page-card">
+        <div class="block-label">Demandes reçues</div>
         <div id="incomingRequestsList"><p class="friend-empty">Aucune demande en attente.</p></div>
       </div>
 
-      <div class="page-card" style="margin-top:18px;">
-        <div class="block-label" style="padding:6px 2px 10px;">Mes amis</div>
+      <div class="page-card">
+        <div class="block-label">Mes amis</div>
         <div id="friendsList"><p class="friend-empty">Tu n'as pas encore d'amis. Cherche un pseudo ci-dessus !</p></div>
       </div>
     </section>
@@ -415,6 +432,15 @@
       <div id="friendGalleryContent"></div>
     </section>
   </main>
+</div>
+
+<!-- ===================== NOTIFICATIONS MODAL ===================== -->
+<div id="notifModalOverlay" class="modal-overlay" hidden>
+  <div class="modal">
+    <button id="notifModalClose" class="modal-close" type="button" aria-label="Fermer">×</button>
+    <div class="block-label">Notifications</div>
+    <div id="notifList"><p class="friend-empty">Rien pour l'instant. Ajoute des amis pour voir leurs nouvelles stars ici.</p></div>
+  </div>
 </div>
 
 <!-- ===================== PROFILE MODAL ===================== -->
@@ -436,6 +462,18 @@
     <div class="modal-actions" style="justify-content:flex-end; margin-top:22px;">
       <button type="button" id="logoutBtn" class="btn btn-danger btn-sm">Changer de compte</button>
     </div>
+  </div>
+</div>
+
+<!-- ===================== STAR VIEW MODAL (lecture seule, amis) ===================== -->
+<div id="viewModalOverlay" class="modal-overlay" hidden>
+  <div class="modal">
+    <button id="viewModalClose" class="modal-close" type="button" aria-label="Fermer">×</button>
+    <div class="view-modal-photo-wrap"><img id="viewModalPhoto" src="" alt=""></div>
+    <h3 id="viewModalName" class="view-modal-name"></h3>
+    <p id="viewModalDate" class="view-modal-date"></p>
+    <div class="view-modal-description-label">Description</div>
+    <p id="viewModalDescription" class="view-modal-description"></p>
   </div>
 </div>
 
@@ -503,7 +541,8 @@
   let friendsCache = [];
   let incomingRequests = [];
   let outgoingRequests = [];
-  let unsubStars = null, unsubIncoming = null, unsubOutgoing = null, unsubFriends = null;
+  let unsubStars = null, unsubIncoming = null, unsubOutgoing = null, unsubFriends = null, unsubNotifications = null;
+  let notificationsCache = [];
 
   let pendingStar = null;
   let pendingPhotoDataUrl = null;
@@ -576,7 +615,13 @@
       document.getElementById('friendSearchResults').innerHTML = '';
       document.getElementById('friendSearchInput').value = '';
     }
+    requestAnimationFrame(updateHeaderHeightVar);
   }
+  function updateHeaderHeightVar(){
+    const h = document.querySelector('.topbar').offsetHeight;
+    document.documentElement.style.setProperty('--header-h', h + 'px');
+  }
+  window.addEventListener('resize', updateHeaderHeightVar);
   document.getElementById('navAdd').addEventListener('click', () => switchView('add'));
   document.getElementById('navGallery').addEventListener('click', () => switchView('gallery'));
   document.getElementById('emptyAddBtn').addEventListener('click', () => switchView('add'));
@@ -593,12 +638,15 @@
     const snap = await db.collection('users').where('pseudoLower', '==', pseudoLower).limit(1).get();
     if(!snap.empty){
       const doc = snap.docs[0];
-      return { uid: doc.id, pseudo: doc.data().pseudo };
+      const data = doc.data();
+      return { uid: doc.id, pseudo: data.pseudo, lastSeenAt: data.lastSeenNotificationsAt || null };
     }
     const newDoc = await db.collection('users').add({
-      pseudo, pseudoLower, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      pseudo, pseudoLower,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastSeenNotificationsAt: firebase.firestore.FieldValue.serverTimestamp()
     });
-    return { uid: newDoc.id, pseudo };
+    return { uid: newDoc.id, pseudo, lastSeenAt: null };
   }
 
   document.getElementById('pseudoForm').addEventListener('submit', async (e) => {
@@ -637,8 +685,9 @@
     if(unsubIncoming) unsubIncoming();
     if(unsubOutgoing) unsubOutgoing();
     if(unsubFriends) unsubFriends();
-    unsubStars = unsubIncoming = unsubOutgoing = unsubFriends = null;
-    starsCache = []; friendsCache = []; incomingRequests = []; outgoingRequests = [];
+    if(unsubNotifications) unsubNotifications();
+    unsubStars = unsubIncoming = unsubOutgoing = unsubFriends = unsubNotifications = null;
+    starsCache = []; friendsCache = []; incomingRequests = []; outgoingRequests = []; notificationsCache = [];
   }
 
   function logOut(){
@@ -680,8 +729,84 @@
       .onSnapshot(snap => {
         friendsCache = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
         renderFriendsList();
+        subscribeNotifications();
       }, err => console.error(err));
   }
+
+  function subscribeNotifications(){
+    if(unsubNotifications) unsubNotifications();
+    const friendUids = friendsCache.map(f => f.uid).slice(0, 30);
+    if(friendUids.length === 0){
+      notificationsCache = [];
+      renderNotifications();
+      updateNotifBadge();
+      return;
+    }
+    unsubNotifications = starsCollection
+      .where('ownerId', 'in', friendUids)
+      .orderBy('createdAt', 'desc')
+      .limit(30)
+      .onSnapshot(snap => {
+        notificationsCache = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.createdAt);
+        renderNotifications();
+        updateNotifBadge();
+      }, err => console.error('notifications listener error:', err));
+  }
+
+  function formatRelativeTime(timestamp){
+    if(!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if(diffMin < 1) return "à l'instant";
+    if(diffMin < 60) return `il y a ${diffMin} min`;
+    const diffH = Math.floor(diffMin / 60);
+    if(diffH < 24) return `il y a ${diffH} h`;
+    const diffJ = Math.floor(diffH / 24);
+    if(diffJ < 7) return `il y a ${diffJ} j`;
+    return new Intl.DateTimeFormat('fr-FR', { day:'numeric', month:'short' }).format(date);
+  }
+
+  function updateNotifBadge(){
+    const badge = document.getElementById('notifBadge');
+    const lastSeenMillis = currentUser.lastSeenAt && currentUser.lastSeenAt.toMillis ? currentUser.lastSeenAt.toMillis() : 0;
+    const unseenCount = notificationsCache.filter(n => n.createdAt && n.createdAt.toMillis() > lastSeenMillis).length;
+    if(unseenCount > 0){ badge.hidden = false; badge.textContent = unseenCount; }
+    else badge.hidden = true;
+  }
+
+  function renderNotifications(){
+    const container = document.getElementById('notifList');
+    if(notificationsCache.length === 0){
+      container.innerHTML = '<p class="friend-empty">Rien pour l\'instant. Ajoute des amis pour voir leurs nouvelles stars ici.</p>';
+      return;
+    }
+    container.innerHTML = notificationsCache.map(n => `
+      <div class="friend-row notif-row" data-uid="${n.ownerId}" data-pseudo="${escapeHtml(n.ownerPseudo)}">
+        <span class="friend-name">${escapeHtml(n.ownerPseudo)} a ajouté <strong>${escapeHtml(n.fullName)}</strong></span>
+        <span class="friend-tag">${formatRelativeTime(n.createdAt)}</span>
+      </div>
+    `).join('');
+    container.querySelectorAll('.notif-row').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', () => {
+        document.getElementById('notifModalOverlay').hidden = true;
+        openFriendGallery(row.dataset.uid, row.dataset.pseudo);
+      });
+    });
+  }
+
+  document.getElementById('notifBtn').addEventListener('click', async () => {
+    document.getElementById('notifModalOverlay').hidden = false;
+    currentUser.lastSeenAt = { toMillis: () => Date.now() };
+    updateNotifBadge();
+    await db.collection('users').doc(currentUser.uid).update({
+      lastSeenNotificationsAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  });
+  document.getElementById('notifModalClose').addEventListener('click', () => {
+    document.getElementById('notifModalOverlay').hidden = true;
+  });
 
   function updateFriendBadge(){
     const badge = document.getElementById('friendReqBadge');
@@ -811,6 +936,8 @@
     container.querySelectorAll('.view-friend-btn').forEach(b => b.addEventListener('click', () => openFriendGallery(b.dataset.uid, b.dataset.pseudo)));
   }
 
+  let currentFriendStars = [];
+
   async function openFriendGallery(uid, pseudo){
     document.getElementById('friendGalleryTitle').textContent = `Pokédex de ${pseudo}`;
     document.getElementById('friendGalleryContent').innerHTML = '';
@@ -818,13 +945,37 @@
     switchView('friendGallery');
     try{
       const snap = await starsCollection.where('ownerId', '==', uid).orderBy('date', 'desc').get();
-      const friendStars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderGenericGallery(friendStars, 'friendGalleryContent', 'friendGalleryEmpty', false);
+      currentFriendStars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderGenericGallery(currentFriendStars, 'friendGalleryContent', 'friendGalleryEmpty', 'view');
     }catch(err){
       console.error(err);
       document.getElementById('friendGalleryContent').innerHTML = '<p class="friend-empty">Impossible de charger ce Pokédex.</p>';
     }
   }
+
+  function openViewModal(id){
+    const star = currentFriendStars.find(s => s.id === id);
+    if(!star) return;
+    const gradient = hashGradient(star.fullName);
+    document.getElementById('viewModalPhoto').src = star.photoUrl || generateInitialsAvatar(star.fullName, gradient);
+    document.getElementById('viewModalName').textContent = star.fullName;
+    document.getElementById('viewModalDate').textContent = new Intl.DateTimeFormat('fr-FR', { day:'numeric', month:'long', year:'numeric' }).format(new Date(star.date + 'T00:00:00'));
+    const descEl = document.getElementById('viewModalDescription');
+    if(star.description){
+      descEl.textContent = star.description;
+      descEl.classList.remove('empty');
+    }else{
+      descEl.textContent = 'Aucune description ajoutée.';
+      descEl.classList.add('empty');
+    }
+    document.getElementById('viewModalOverlay').hidden = false;
+  }
+  document.getElementById('viewModalClose').addEventListener('click', () => {
+    document.getElementById('viewModalOverlay').hidden = true;
+  });
+  document.getElementById('viewModalOverlay').addEventListener('click', (e) => {
+    if(e.target.id === 'viewModalOverlay') document.getElementById('viewModalOverlay').hidden = true;
+  });
 
   // ---------- add form ----------
   function showPhotoStatus(msg){ const el = document.getElementById('photoStatus'); el.textContent = msg; el.hidden = false; }
@@ -849,7 +1000,8 @@
       fullName: star.fullName,
       date: star.date,
       description: star.description || '',
-      photoUrl: star.photoUrl || null
+      photoUrl: star.photoUrl || null,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   }
 
@@ -921,13 +1073,14 @@
   }
 
   // ---------- galleries (generic renderer) ----------
-  function cardHTML(s, clickable){
+  function cardHTML(s, mode){
     const gradient = hashGradient(s.fullName);
     const photo = s.photoUrl || generateInitialsAvatar(s.fullName, gradient);
     const dateLabel = new Intl.DateTimeFormat('fr-FR', { day:'numeric', month:'short' }).format(new Date(s.date + 'T00:00:00'));
-    const clickableClass = clickable ? ' clickable' : '';
-    const tag = clickable ? 'button' : 'div';
-    const typeAttr = clickable ? 'type="button"' : '';
+    const isClickable = mode !== 'static';
+    const clickableClass = isClickable ? ' clickable' : '';
+    const tag = isClickable ? 'button' : 'div';
+    const typeAttr = isClickable ? 'type="button"' : '';
     return `
       <${tag} ${typeAttr} class="star-card${clickableClass}" data-id="${s.id}">
         <span class="card-photo-wrap"><img src="${photo}" alt="${escapeHtml(s.fullName)}" loading="lazy"></span>
@@ -939,7 +1092,7 @@
     `;
   }
 
-  function renderGenericGallery(stars, contentId, emptyId, clickable){
+  function renderGenericGallery(stars, contentId, emptyId, mode){
     const empty = document.getElementById(emptyId);
     const grid = document.getElementById(contentId);
     empty.hidden = stars.length > 0;
@@ -963,21 +1116,25 @@
       return `
         <div class="month-group">
           <h2 class="month-header">${g.label} <span class="month-count">(${g.items.length})</span></h2>
-          <div class="card-grid">${g.items.map(s => cardHTML(s, clickable)).join('')}</div>
+          <div class="card-grid">${g.items.map(s => cardHTML(s, mode)).join('')}</div>
         </div>
       `;
     }).join('');
 
-    if(clickable){
+    if(mode === 'edit'){
       grid.querySelectorAll('.star-card').forEach(el => {
         el.addEventListener('click', () => openEditModal(el.dataset.id));
+      });
+    }else if(mode === 'view'){
+      grid.querySelectorAll('.star-card').forEach(el => {
+        el.addEventListener('click', () => openViewModal(el.dataset.id));
       });
     }
   }
 
   function renderMyGallery(){
     document.getElementById('countBadge').textContent = starsCache.length;
-    renderGenericGallery(starsCache, 'galleryContent', 'galleryEmpty', true);
+    renderGenericGallery(starsCache, 'galleryContent', 'galleryEmpty', 'edit');
   }
 
   // ---------- edit modal (own stars) ----------
