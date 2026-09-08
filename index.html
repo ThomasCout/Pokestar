@@ -227,6 +227,35 @@
     border-bottom: 1px solid var(--border); gap:10px;
   }
   .friend-row:last-child{ border-bottom:none; }
+
+  .block-sub{ color: var(--text-lighter); font-size:0.78rem; margin:0 0 12px; }
+
+  .rank-row{
+    display:flex; align-items:center; gap:12px; padding:11px 2px; width:100%;
+    border-bottom:1px solid var(--border); background:transparent; border-left:none; border-right:none; border-top:none;
+    text-align:left; font-family:inherit; color:inherit;
+  }
+  .rank-row:last-child{ border-bottom:none; }
+  button.rank-row{ cursor:pointer; border-radius:10px; }
+  button.rank-row:hover{ background: var(--bg-hover); }
+  .rank-row.me{ background: rgba(255,46,154,0.07); border-radius:12px; border-bottom-color:transparent; }
+  .rank-num{
+    width:24px; text-align:center; font-weight:700; font-size:0.92rem; flex-shrink:0;
+    font-family:'Space Grotesk',sans-serif; color:var(--text-lighter);
+  }
+  .rank-num.gold{ color:#FFD23F; }
+  .rank-num.silver{ color:#D6D5E3; }
+  .rank-num.bronze{ color:#FF9F6B; }
+  .rank-avatar{
+    width:32px; height:32px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:0.68rem;
+  }
+  .rank-name{ flex:1; font-weight:600; font-size:0.87rem; min-width:0; }
+  .rank-name .you-tag{ display:block; font-size:0.66rem; font-weight:600; color:var(--accent-1); margin-top:1px; }
+  .rank-count{
+    background: var(--bg-hover); color: var(--text-light); font-weight:700; font-size:0.76rem;
+    padding:5px 10px; border-radius:999px; white-space:nowrap; flex-shrink:0;
+  }
   .friend-name{ font-weight:600; font-size:0.9rem; }
   .friend-actions{ display:flex; gap:6px; }
   .friend-tag{
@@ -404,6 +433,12 @@
       </div>
 
       <div class="page-card">
+        <div class="block-label">🏆 Classement</div>
+        <p class="block-sub">Triés par nombre de stars capturées — appuie pour voir un Pokédex</p>
+        <div id="rankingList"><p class="friend-empty">Ajoute des amis pour voir le classement !</p></div>
+      </div>
+
+      <div class="page-card">
         <div class="block-label">Ajouter un ami</div>
         <div class="friend-search-row">
           <input type="text" id="friendSearchInput" class="friend-search-input" placeholder="Pseudo de ton ami">
@@ -412,14 +447,9 @@
         <div id="friendSearchResults"></div>
       </div>
 
-      <div class="page-card">
+      <div class="page-card" id="incomingRequestsCard" hidden>
         <div class="block-label">Demandes reçues</div>
-        <div id="incomingRequestsList"><p class="friend-empty">Aucune demande en attente.</p></div>
-      </div>
-
-      <div class="page-card">
-        <div class="block-label">Mes amis</div>
-        <div id="friendsList"><p class="friend-empty">Tu n'as pas encore d'amis. Cherche un pseudo ci-dessus !</p></div>
+        <div id="incomingRequestsList"></div>
       </div>
     </section>
 
@@ -544,6 +574,7 @@
   let outgoingRequests = [];
   let unsubStars = null, unsubIncoming = null, unsubOutgoing = null, unsubFriends = null, unsubNotifications = null;
   let notificationsCache = [];
+  let friendCounts = {};
 
   let pendingStar = null;
   let pendingPhotoDataUrl = null;
@@ -615,6 +646,7 @@
     if(name === 'friends'){
       document.getElementById('friendSearchResults').innerHTML = '';
       document.getElementById('friendSearchInput').value = '';
+      refreshRanking();
     }
     requestAnimationFrame(updateHeaderHeightVar);
   }
@@ -711,6 +743,7 @@
       .onSnapshot(snap => {
         starsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         renderMyGallery();
+        renderRanking();
       }, err => console.error('stars listener error:', err));
   }
   function subscribeFriendRequests(){
@@ -729,9 +762,68 @@
     unsubFriends = db.collection('friendships').doc(currentUser.uid).collection('list')
       .onSnapshot(snap => {
         friendsCache = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
-        renderFriendsList();
+        refreshRanking();
         subscribeNotifications();
       }, err => console.error(err));
+  }
+
+  async function refreshRanking(){
+    if(!currentUser) return;
+    const counts = {};
+    await Promise.all(friendsCache.map(async f => {
+      try{
+        const snap = await starsCollection.where('ownerId', '==', f.uid).count().get();
+        counts[f.uid] = snap.data().count;
+      }catch(e){
+        try{
+          const snap2 = await starsCollection.where('ownerId', '==', f.uid).get();
+          counts[f.uid] = snap2.size;
+        }catch(e2){ counts[f.uid] = 0; }
+      }
+    }));
+    friendCounts = counts;
+    renderRanking();
+  }
+
+  function renderRanking(){
+    const container = document.getElementById('rankingList');
+    if(!container || !currentUser) return;
+
+    const rows = [
+      { uid: currentUser.uid, pseudo: currentUser.pseudo, count: starsCache.length, isMe: true },
+      ...friendsCache.map(f => ({ uid: f.uid, pseudo: f.pseudo, count: friendCounts[f.uid] ?? 0, isMe: false }))
+    ];
+    rows.sort((a, b) => b.count - a.count);
+
+    if(rows.length === 1){
+      container.innerHTML = '<p class="friend-empty">Ajoute des amis pour voir le classement !</p>';
+      return;
+    }
+
+    container.innerHTML = rows.map((r, i) => {
+      const rank = i + 1;
+      const rankClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+      const gradient = hashGradient(r.pseudo);
+      const meClass = r.isMe ? ' me' : '';
+      const nameHtml = r.isMe
+        ? `${escapeHtml(r.pseudo)}<span class="you-tag">Toi</span>`
+        : escapeHtml(r.pseudo);
+      const tag = r.isMe ? 'div' : 'button';
+      const typeAttr = r.isMe ? '' : 'type="button"';
+      const dataAttr = r.isMe ? '' : `data-uid="${r.uid}" data-pseudo="${escapeHtml(r.pseudo)}"`;
+      return `
+        <${tag} ${typeAttr} class="rank-row${meClass}" ${dataAttr}>
+          <span class="rank-num ${rankClass}">${rank}</span>
+          <span class="rank-avatar" style="background:linear-gradient(135deg,${gradient[0]},${gradient[1]});">${getInitials(r.pseudo)}</span>
+          <span class="rank-name">${nameHtml}</span>
+          <span class="rank-count">✦ ${r.count}</span>
+        </${tag}>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.rank-row[data-uid]').forEach(el => {
+      el.addEventListener('click', () => openFriendGallery(el.dataset.uid, el.dataset.pseudo));
+    });
   }
 
   function subscribeNotifications(){
@@ -896,8 +988,10 @@
   }
 
   function renderIncomingRequests(){
+    const card = document.getElementById('incomingRequestsCard');
     const container = document.getElementById('incomingRequestsList');
-    if(incomingRequests.length === 0){ container.innerHTML = '<p class="friend-empty">Aucune demande en attente.</p>'; return; }
+    if(incomingRequests.length === 0){ card.hidden = true; container.innerHTML = ''; return; }
+    card.hidden = false;
     container.innerHTML = incomingRequests.map(r => `
       <div class="friend-row">
         <span class="friend-name">${escapeHtml(r.fromPseudo)}</span>
@@ -923,18 +1017,6 @@
   }
   async function declineRequest(reqId){
     await db.collection('friendRequests').doc(reqId).delete();
-  }
-
-  function renderFriendsList(){
-    const container = document.getElementById('friendsList');
-    if(friendsCache.length === 0){ container.innerHTML = '<p class="friend-empty">Tu n\'as pas encore d\'amis. Cherche un pseudo ci-dessus !</p>'; return; }
-    container.innerHTML = friendsCache.map(f => `
-      <div class="friend-row">
-        <span class="friend-name">${escapeHtml(f.pseudo)}</span>
-        <button type="button" class="btn btn-ghost btn-sm view-friend-btn" data-uid="${f.uid}" data-pseudo="${escapeHtml(f.pseudo)}">Voir son Pokédex</button>
-      </div>
-    `).join('');
-    container.querySelectorAll('.view-friend-btn').forEach(b => b.addEventListener('click', () => openFriendGallery(b.dataset.uid, b.dataset.pseudo)));
   }
 
   let currentFriendStars = [];
