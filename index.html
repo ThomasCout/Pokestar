@@ -209,8 +209,13 @@
   .star-card.clickable{ cursor:pointer; }
   .star-card.clickable:hover{ border-color: var(--border-strong); box-shadow: var(--shadow); transform: translateY(-2px); }
 
-  .card-photo-wrap{ display:block; aspect-ratio: 1/1; width:100%; background: var(--bg-hover); overflow:hidden; }
+  .card-photo-wrap{ display:block; position:relative; aspect-ratio: 1/1; width:100%; background: var(--bg-hover); overflow:hidden; }
   .card-photo-wrap img{ width:100%; height:100%; object-fit: cover; display:block; }
+  .level-chip{
+    position:absolute; top:6px; left:6px; z-index:2;
+    background: rgba(12,11,20,0.72); backdrop-filter: blur(4px); color:#fff;
+    font-size:0.64rem; font-weight:700; padding:3px 7px; border-radius:999px;
+  }
   .card-footer{ padding: 9px 10px 11px; display:flex; flex-direction:column; gap:2px; }
   .card-name{ font-weight: 600; font-size: 0.82rem; color: var(--text); line-height:1.3; }
   .card-date{ font-size: 0.74rem; color: var(--text-lighter); }
@@ -229,6 +234,7 @@
   .friend-row:last-child{ border-bottom:none; }
 
   .block-sub{ color: var(--text-lighter); font-size:0.78rem; margin:0 0 12px; }
+  .optional{ font-weight:400; color: var(--text-lighter); }
 
   .rank-row{
     display:flex; align-items:center; gap:12px; padding:11px 2px; width:100%;
@@ -398,9 +404,11 @@
         <div id="photoStatus" class="photo-status" hidden></div>
 
         <div id="manualPhotoZone" class="manual-photo-zone" hidden>
-          <p>Aucune photo trouvée sur Wikipédia. Tu peux en ajouter une toi-même :</p>
-          <input type="file" id="manualPhotoInput" accept="image/*">
-          <div id="manualPreviewWrap"></div>
+          <div id="manualPhotoSection" hidden>
+            <p>Aucune photo trouvée sur Wikipédia. Tu peux en ajouter une toi-même :</p>
+            <input type="file" id="manualPhotoInput" accept="image/*">
+            <div id="manualPreviewWrap"></div>
+          </div>
           <div class="manual-actions">
             <button type="button" id="confirmManualBtn" class="btn btn-primary">Valider la carte</button>
             <button type="button" id="cancelManualBtn" class="btn btn-ghost">Annuler</button>
@@ -503,6 +511,7 @@
     <div class="view-modal-photo-wrap"><img id="viewModalPhoto" src="" alt=""></div>
     <h3 id="viewModalName" class="view-modal-name"></h3>
     <p id="viewModalDate" class="view-modal-date"></p>
+    <p id="viewModalPoints" class="view-modal-date" style="margin-top:-12px;" hidden></p>
     <div class="view-modal-description-label">Description</div>
     <p id="viewModalDescription" class="view-modal-description"></p>
   </div>
@@ -526,6 +535,10 @@
       <div class="property-row">
         <div class="property-label"><span class="property-icon">📅</span>Date</div>
         <input required id="editDate" type="date">
+      </div>
+      <div class="property-row">
+        <div class="property-label"><span class="property-icon">★</span>Points</div>
+        <input id="editPoints" type="text" readonly>
       </div>
       <div class="description-block">
         <div class="block-label">Description</div>
@@ -791,19 +804,16 @@
 
   async function refreshRanking(){
     if(!currentUser) return;
-    const counts = {};
+    const totals = {};
     await Promise.all(friendsCache.map(async f => {
       try{
-        const snap = await starsCollection.where('ownerId', '==', f.uid).count().get();
-        counts[f.uid] = snap.data().count;
-      }catch(e){
-        try{
-          const snap2 = await starsCollection.where('ownerId', '==', f.uid).get();
-          counts[f.uid] = snap2.size;
-        }catch(e2){ counts[f.uid] = 0; }
-      }
+        const snap = await starsCollection.where('ownerId', '==', f.uid).get();
+        let total = 0;
+        snap.forEach(doc => { total += (doc.data().points || 0); });
+        totals[f.uid] = total;
+      }catch(e){ totals[f.uid] = 0; }
     }));
-    friendCounts = counts;
+    friendCounts = totals;
     renderRanking();
   }
 
@@ -811,11 +821,12 @@
     const container = document.getElementById('rankingList');
     if(!container || !currentUser) return;
 
+    const myTotal = starsCache.reduce((sum, s) => sum + (s.points || 0), 0);
     const rows = [
-      { uid: currentUser.uid, pseudo: currentUser.pseudo, count: starsCache.length, isMe: true },
-      ...friendsCache.map(f => ({ uid: f.uid, pseudo: f.pseudo, count: friendCounts[f.uid] ?? 0, isMe: false }))
+      { uid: currentUser.uid, pseudo: currentUser.pseudo, total: myTotal, isMe: true },
+      ...friendsCache.map(f => ({ uid: f.uid, pseudo: f.pseudo, total: friendCounts[f.uid] ?? 0, isMe: false }))
     ];
-    rows.sort((a, b) => b.count - a.count);
+    rows.sort((a, b) => b.total - a.total);
 
     if(rows.length === 1){
       container.innerHTML = '<p class="friend-empty">Ajoute des amis pour voir le classement !</p>';
@@ -838,7 +849,7 @@
           <span class="rank-num ${rankClass}">${rank}</span>
           <span class="rank-avatar" style="background:linear-gradient(135deg,${gradient[0]},${gradient[1]});">${getInitials(r.pseudo)}</span>
           <span class="rank-name">${nameHtml}</span>
-          <span class="rank-count">✦ ${r.count}</span>
+          <span class="rank-count">★ ${r.total} pts</span>
         </${tag}>
       `;
     }).join('');
@@ -1073,6 +1084,18 @@
     document.getElementById('viewModalPhoto').src = star.photoUrl || generateInitialsAvatar(star.fullName, gradient);
     document.getElementById('viewModalName').textContent = star.fullName;
     document.getElementById('viewModalDate').textContent = new Intl.DateTimeFormat('fr-FR', { day:'numeric', month:'long', year:'numeric' }).format(new Date(star.date + 'T00:00:00'));
+
+    const pointsEl = document.getElementById('viewModalPoints');
+    if(star.points > 0){
+      const sourceLabel = star.pointsSource === 'wikipedia'
+        ? `${formatMetric(star.metricValue)} vues Wikipédia/mois`
+        : '';
+      pointsEl.textContent = `★ ${star.points} pts${sourceLabel ? ' · ' + sourceLabel : ''}`;
+      pointsEl.hidden = false;
+    }else{
+      pointsEl.hidden = true;
+    }
+
     const descEl = document.getElementById('viewModalDescription');
     if(star.description){
       descEl.textContent = star.description;
@@ -1097,6 +1120,7 @@
     document.getElementById('manualPhotoZone').hidden = true;
     document.getElementById('manualPhotoInput').value = '';
     document.getElementById('manualPreviewWrap').innerHTML = '';
+    document.getElementById('manualPhotoSection').hidden = true;
     hidePhotoStatus();
   }
   function resetForm(){
@@ -1114,6 +1138,9 @@
       date: star.date,
       description: star.description || '',
       photoUrl: star.photoUrl || null,
+      points: star.points || 0,
+      pointsSource: star.pointsSource || null,
+      metricValue: star.metricValue || null,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   }
@@ -1127,19 +1154,23 @@
 
     const submitBtn = document.getElementById('submitBtn');
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Recherche de la photo...';
-    showPhotoStatus('Recherche sur Wikipédia...');
+    submitBtn.textContent = 'Recherche en cours...';
+    showPhotoStatus('Recherche de la photo et des points sur Wikipédia...');
 
-    const photoUrl = await searchWikipediaPhoto(fullName);
+    const { photoUrl, views } = await lookupWikipedia(fullName);
+    const { points } = computePoints(views);
+    const pointsSource = (views && views > 0) ? 'wikipedia' : 'default';
 
     if(photoUrl){
-      await saveStar({ fullName, date, description, photoUrl });
+      await saveStar({ fullName, date, description, photoUrl, points, pointsSource, metricValue: views });
       resetForm();
-      showToast(`${fullName} a rejoint le Pokédex`);
+      showToast(`${fullName} a rejoint le Pokédex (${points} pts)`);
     }else{
-      pendingStar = { fullName, date, description };
+      pendingStar = { fullName, date, description, points, pointsSource, metricValue: views };
       pendingPhotoDataUrl = null;
-      showPhotoStatus('Aucune photo trouvée sur Wikipédia.');
+
+      document.getElementById('manualPhotoSection').hidden = false;
+      showPhotoStatus(`Photo introuvable sur Wikipédia (${points} pts attribués automatiquement).`);
       document.getElementById('manualPhotoZone').hidden = false;
     }
     submitBtn.disabled = false;
@@ -1173,19 +1204,58 @@
     hideManualZone();
   });
 
-  // ---------- wikipedia ----------
-  async function searchWikipediaPhoto(query){
+  // ---------- wikipedia (photo + popularité) ----------
+  async function lookupWikipedia(query){
     try{
       const searchRes = await fetch(`https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`);
-      if(!searchRes.ok) return null;
+      if(!searchRes.ok) return { photoUrl:null, views:null };
       const searchData = await searchRes.json();
       const title = searchData?.query?.search?.[0]?.title;
-      if(!title) return null;
+      if(!title) return { photoUrl:null, views:null };
+
       const summaryRes = await fetch(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-      if(!summaryRes.ok) return null;
-      const summaryData = await summaryRes.json();
-      return summaryData?.thumbnail?.source || summaryData?.originalimage?.source || null;
+      const summaryData = summaryRes.ok ? await summaryRes.json() : null;
+      const photoUrl = summaryData?.thumbnail?.source || summaryData?.originalimage?.source || null;
+
+      const views = await fetchWikipediaPageviews(title);
+      return { photoUrl, views };
+    }catch(e){ return { photoUrl:null, views:null }; }
+  }
+
+  function pageviewsDateRange(){
+    const now = new Date();
+    const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const fmt = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+    return { start: fmt(firstOfLastMonth), end: fmt(firstOfThisMonth) };
+  }
+
+  async function fetchWikipediaPageviews(title){
+    try{
+      const { start, end } = pageviewsDateRange();
+      const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/fr.wikipedia/all-access/all-agents/${encodeURIComponent(title)}/monthly/${start}/${end}`;
+      const res = await fetch(url);
+      if(!res.ok) return null;
+      const data = await res.json();
+      if(!data.items || data.items.length === 0) return null;
+      return data.items.reduce((sum, it) => sum + it.views, 0);
     }catch(e){ return null; }
+  }
+
+  // ---------- points / niveaux ----------
+  function computePoints(n){
+    if(!n || n <= 0) return { level: 1, points: 5 };
+    if(n < 1000) return { level: 1, points: 5 };
+    if(n < 10000) return { level: 2, points: 10 };
+    if(n < 100000) return { level: 3, points: 25 };
+    if(n < 1000000) return { level: 4, points: 50 };
+    if(n < 10000000) return { level: 5, points: 100 };
+    return { level: 6, points: 200 };
+  }
+  function formatMetric(n){
+    if(n >= 1000000) return (n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1) + 'M';
+    if(n >= 1000) return (n / 1000).toFixed(n % 1000 === 0 ? 0 : 1) + 'K';
+    return String(n);
   }
 
   // ---------- galleries (generic renderer) ----------
@@ -1197,9 +1267,10 @@
     const clickableClass = isClickable ? ' clickable' : '';
     const tag = isClickable ? 'button' : 'div';
     const typeAttr = isClickable ? 'type="button"' : '';
+    const pointsBadge = s.points > 0 ? `<span class="level-chip">★ ${s.points}</span>` : '';
     return `
       <${tag} ${typeAttr} class="star-card${clickableClass}" data-id="${s.id}">
-        <span class="card-photo-wrap"><img src="${photo}" alt="${escapeHtml(s.fullName)}" loading="lazy"></span>
+        <span class="card-photo-wrap">${pointsBadge}<img src="${photo}" alt="${escapeHtml(s.fullName)}" loading="lazy"></span>
         <span class="card-footer">
           <span class="card-name">${escapeHtml(s.fullName)}</span>
           <span class="card-date">${dateLabel}</span>
@@ -1266,6 +1337,9 @@
     const gradient = hashGradient(star.fullName);
     document.getElementById('modalPhoto').src = star.photoUrl || generateInitialsAvatar(star.fullName, gradient);
 
+    const sourceLabel = star.pointsSource === 'wikipedia' ? ' (Wikipédia)' : star.pointsSource === 'default' ? ' (par défaut)' : '';
+    document.getElementById('editPoints').value = star.points > 0 ? `${star.points} pts${sourceLabel}` : 'Aucun point';
+
     document.getElementById('modalOverlay').hidden = false;
   }
   function closeModal(){
@@ -1296,6 +1370,7 @@
       description: document.getElementById('editDescription').value.trim()
     };
     if(editingPhotoOverride) updates.photoUrl = editingPhotoOverride;
+
     await starsCollection.doc(editingId).update(updates);
     closeModal();
     showToast('Carte mise à jour');
