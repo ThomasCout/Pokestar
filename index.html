@@ -1042,49 +1042,6 @@
     showToast('Rattrapage des points terminé');
   });
 
-  document.getElementById('recalcAllBtn').addEventListener('click', async () => {
-    const btn = document.getElementById('recalcAllBtn');
-    const status = document.getElementById('recalcAllStatus');
-    btn.disabled = true;
-    status.hidden = false;
-    status.textContent = 'Récupération de toutes les stars...';
-
-    let allStars = [];
-    try{
-      const snap = await starsCollection.get();
-      allStars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    }catch(err){
-      console.error(err);
-      status.textContent = "Impossible de récupérer les stars (vérifie les règles Firestore).";
-      btn.disabled = false;
-      return;
-    }
-
-    const toRecalc = allStars.filter(s => !s.pointsSource);
-    if(toRecalc.length === 0){
-      status.textContent = 'Toutes les stars de tout le monde ont déjà des points !';
-      btn.disabled = false;
-      return;
-    }
-
-    let done = 0;
-    for(const star of toRecalc){
-      status.textContent = `Rattrapage global... (${done + 1}/${toRecalc.length}) ${star.fullName} — ${star.ownerPseudo || '?'}`;
-      try{
-        const { views } = await lookupWikipedia(star.fullName);
-        const { points } = computePoints(views);
-        const pointsSource = (views && views > 0) ? 'wikipedia' : 'default';
-        await starsCollection.doc(star.id).update({ points, pointsSource, metricValue: views });
-      }catch(err){
-        console.error('Recalc error for', star.fullName, err);
-      }
-      done++;
-    }
-    btn.disabled = false;
-    status.textContent = `Terminé : ${done} star(s) mises à jour, tous utilisateurs confondus.`;
-    showToast('Rattrapage global terminé');
-  });
-
   // ---------- friends: search & requests ----------
   document.getElementById('friendSearchBtn').addEventListener('click', async () => {
     const q = document.getElementById('friendSearchInput').value.trim();
