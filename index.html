@@ -501,9 +501,6 @@
     <button type="button" id="recalcPointsBtn" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);">Rattraper mes anciennes stars</button>
     <p id="recalcStatus" class="block-sub" style="margin-top:8px;" hidden></p>
 
-    <button type="button" id="recalcAllBtn" class="btn btn-ghost btn-sm" style="border:1px solid var(--border); margin-top:8px;">Rattraper les stars de TOUT LE MONDE</button>
-    <p id="recalcAllStatus" class="block-sub" style="margin-top:8px;" hidden></p>
-
     <p id="profileError" class="auth-error" hidden></p>
     <p id="profileSuccess" class="auth-success" hidden></p>
 
@@ -1043,6 +1040,49 @@
     btn.disabled = false;
     status.textContent = `Terminé : ${done} star(s) mises à jour avec leurs points.`;
     showToast('Rattrapage des points terminé');
+  });
+
+  document.getElementById('recalcAllBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('recalcAllBtn');
+    const status = document.getElementById('recalcAllStatus');
+    btn.disabled = true;
+    status.hidden = false;
+    status.textContent = 'Récupération de toutes les stars...';
+
+    let allStars = [];
+    try{
+      const snap = await starsCollection.get();
+      allStars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }catch(err){
+      console.error(err);
+      status.textContent = "Impossible de récupérer les stars (vérifie les règles Firestore).";
+      btn.disabled = false;
+      return;
+    }
+
+    const toRecalc = allStars.filter(s => !s.pointsSource);
+    if(toRecalc.length === 0){
+      status.textContent = 'Toutes les stars de tout le monde ont déjà des points !';
+      btn.disabled = false;
+      return;
+    }
+
+    let done = 0;
+    for(const star of toRecalc){
+      status.textContent = `Rattrapage global... (${done + 1}/${toRecalc.length}) ${star.fullName} — ${star.ownerPseudo || '?'}`;
+      try{
+        const { views } = await lookupWikipedia(star.fullName);
+        const { points } = computePoints(views);
+        const pointsSource = (views && views > 0) ? 'wikipedia' : 'default';
+        await starsCollection.doc(star.id).update({ points, pointsSource, metricValue: views });
+      }catch(err){
+        console.error('Recalc error for', star.fullName, err);
+      }
+      done++;
+    }
+    btn.disabled = false;
+    status.textContent = `Terminé : ${done} star(s) mises à jour, tous utilisateurs confondus.`;
+    showToast('Rattrapage global terminé');
   });
 
   // ---------- friends: search & requests ----------
