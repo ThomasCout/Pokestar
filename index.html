@@ -199,7 +199,7 @@
   }
   .month-count{ color: var(--text-lighter); font-weight: 400; }
 
-  .card-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card-grid{ display:grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
 
   .star-card{
     border: 1px solid var(--border); padding:0; text-align:left; background: var(--bg-card);
@@ -216,9 +216,9 @@
     background: rgba(12,11,20,0.72); backdrop-filter: blur(4px); color:#fff;
     font-size:0.64rem; font-weight:700; padding:3px 7px; border-radius:999px;
   }
-  .card-footer{ padding: 9px 10px 11px; display:flex; flex-direction:column; gap:2px; }
-  .card-name{ font-weight: 600; font-size: 0.82rem; color: var(--text); line-height:1.3; }
-  .card-date{ font-size: 0.74rem; color: var(--text-lighter); }
+  .card-footer{ padding: 12px 14px 14px; display:flex; flex-direction:column; gap:3px; }
+  .card-name{ font-weight: 600; font-size: 0.98rem; color: var(--text); line-height:1.3; }
+  .card-date{ font-size: 0.82rem; color: var(--text-lighter); }
 
   /* ---------- Friends ---------- */
   .friend-search-row{ display:flex; gap:8px; padding: 6px 2px 14px; }
@@ -321,13 +321,20 @@
 
   [hidden]{ display:none !important; }
 
+  .fab-btn{
+    position: fixed; bottom: 28px; right: 24px; z-index: 40;
+    width: 58px; height: 58px; border-radius: 50%; border: none;
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); color: #fff;
+    font-size: 1.8rem; font-weight: 400; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 10px 26px rgba(255,46,154,0.35), 0 0 0 1px rgba(255,255,255,0.06);
+    cursor:pointer; transition: transform 120ms ease;
+  }
+  .fab-btn:active{ transform: scale(0.94); }
+
   @media (max-width: 520px){
-    .card-grid{ grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .card-footer{ padding: 6px 6px 8px; }
-    .card-name{ font-size: 0.7rem; }
-    .card-date{ font-size: 0.64rem; }
     .add-hero h1{ font-size: 1.45rem; }
-    main{ padding: 6px 16px 60px; }
+    main{ padding: 6px 16px 90px; }
     .topbar{ padding: 16px 16px 0; }
     .page-card{ padding: 8px 14px 20px; }
   }
@@ -350,12 +357,9 @@
         <button type="button" id="profileBtn" class="icon-btn avatar-btn" title="Profil"><span id="avatarInitials">?</span></button>
       </div>
     </div>
-    <div class="toggle-switch" id="screenToggle" hidden>
-      <div class="toggle-indicator" id="toggleIndicator"></div>
-      <button type="button" class="toggle-option active" id="navAdd">Ajouter</button>
-      <button type="button" class="toggle-option" id="navGallery">Pokédex <span class="toggle-count" id="countBadge">0</span></button>
-    </div>
   </header>
+
+  <button type="button" id="fabAddBtn" class="fab-btn" hidden title="Ajouter une star">+</button>
 
   <main>
     <!-- ===================== PSEUDO (identification simple) ===================== -->
@@ -377,49 +381,6 @@
         </form>
         <p id="pseudoError" class="auth-error" hidden></p>
       </div>
-    </section>
-
-    <!-- ===================== ADD ===================== -->
-    <section id="screenAdd" class="screen" hidden>
-      <div class="add-hero">
-        <h1>Nouvelle rencontre</h1>
-      </div>
-
-      <form id="addForm" class="page-card">
-        <div class="properties">
-          <div class="property-row">
-            <div class="property-label"><span class="property-icon">Aa</span>Nom</div>
-            <input required id="fullName" type="text" placeholder="Marion Cotillard" autocomplete="off">
-          </div>
-          <div class="property-row">
-            <div class="property-label"><span class="property-icon">📅</span>Date</div>
-            <input required id="metDate" type="date">
-          </div>
-        </div>
-
-        <div class="description-block">
-          <div class="block-label">Description</div>
-          <textarea id="description" rows="3" placeholder="Ajouter une description... (facultatif)"></textarea>
-        </div>
-
-        <div id="photoStatus" class="photo-status" hidden></div>
-
-        <div id="manualPhotoZone" class="manual-photo-zone" hidden>
-          <div id="manualPhotoSection" hidden>
-            <p>Aucune photo trouvée sur Wikipédia. Tu peux en ajouter une toi-même :</p>
-            <input type="file" id="manualPhotoInput" accept="image/*">
-            <div id="manualPreviewWrap"></div>
-          </div>
-          <div class="manual-actions">
-            <button type="button" id="confirmManualBtn" class="btn btn-primary">Valider la carte</button>
-            <button type="button" id="cancelManualBtn" class="btn btn-ghost">Annuler</button>
-          </div>
-        </div>
-
-        <div class="form-footer">
-          <button type="submit" id="submitBtn" class="btn btn-primary">Ajouter au Pokédex</button>
-        </div>
-      </form>
     </section>
 
     <!-- ===================== MY GALLERY ===================== -->
@@ -507,6 +468,52 @@
     <div class="modal-actions" style="justify-content:flex-end; margin-top:22px;">
       <button type="button" id="logoutBtn" class="btn btn-danger btn-sm">Changer de compte</button>
     </div>
+  </div>
+</div>
+
+<!-- ===================== ADD MODAL ===================== -->
+<div id="addModalOverlay" class="modal-overlay" hidden>
+  <div class="modal">
+    <button id="addModalClose" class="modal-close" type="button" aria-label="Fermer">×</button>
+    <div class="add-hero" style="margin:4px auto 18px;">
+      <h1>Nouvelle rencontre</h1>
+    </div>
+
+    <form id="addForm">
+      <div class="properties">
+        <div class="property-row">
+          <div class="property-label"><span class="property-icon">Aa</span>Nom</div>
+          <input required id="fullName" type="text" placeholder="Marion Cotillard" autocomplete="off">
+        </div>
+        <div class="property-row">
+          <div class="property-label"><span class="property-icon">📅</span>Date</div>
+          <input required id="metDate" type="date">
+        </div>
+      </div>
+
+      <div class="description-block">
+        <div class="block-label">Description</div>
+        <textarea id="description" rows="3" placeholder="Ajouter une description... (facultatif)"></textarea>
+      </div>
+
+      <div id="photoStatus" class="photo-status" hidden></div>
+
+      <div id="manualPhotoZone" class="manual-photo-zone" hidden>
+        <div id="manualPhotoSection" hidden>
+          <p>Aucune photo trouvée sur Wikipédia. Tu peux en ajouter une toi-même :</p>
+          <input type="file" id="manualPhotoInput" accept="image/*">
+          <div id="manualPreviewWrap"></div>
+        </div>
+        <div class="manual-actions">
+          <button type="button" id="confirmManualBtn" class="btn btn-primary">Valider la carte</button>
+          <button type="button" id="cancelManualBtn" class="btn btn-ghost">Annuler</button>
+        </div>
+      </div>
+
+      <div class="form-footer">
+        <button type="submit" id="submitBtn" class="btn btn-primary">Ajouter au Pokédex</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -672,18 +679,11 @@
   }
 
   // ---------- view switching ----------
-  const ALL_VIEWS = ['screenPseudo','screenAdd','screenGallery','screenFriends','screenFriendGallery'];
+  const ALL_VIEWS = ['screenPseudo','screenGallery','screenFriends','screenFriendGallery'];
   function switchView(name){
     ALL_VIEWS.forEach(id => { document.getElementById(id).hidden = (id !== 'screen' + capitalize(name)); });
-    const showToggle = (name === 'add' || name === 'gallery');
-    document.getElementById('screenToggle').hidden = !showToggle || !currentUser;
-    if(showToggle){
-      const isAdd = name === 'add';
-      document.getElementById('navAdd').classList.toggle('active', isAdd);
-      document.getElementById('navGallery').classList.toggle('active', !isAdd);
-      document.getElementById('toggleIndicator').classList.toggle('pos-1', !isAdd);
-      if(!isAdd) renderMyGallery();
-    }
+    document.getElementById('fabAddBtn').hidden = !(name === 'gallery' && currentUser);
+    if(name === 'gallery') renderMyGallery();
     if(name === 'friends'){
       document.getElementById('friendSearchResults').innerHTML = '';
       document.getElementById('friendSearchInput').value = '';
@@ -696,9 +696,18 @@
     document.documentElement.style.setProperty('--header-h', h + 'px');
   }
   window.addEventListener('resize', updateHeaderHeightVar);
-  document.getElementById('navAdd').addEventListener('click', () => switchView('add'));
-  document.getElementById('navGallery').addEventListener('click', () => switchView('gallery'));
-  document.getElementById('emptyAddBtn').addEventListener('click', () => switchView('add'));
+
+  function openAddModal(){
+    resetForm();
+    document.getElementById('addModalOverlay').hidden = false;
+  }
+  function closeAddModal(){
+    document.getElementById('addModalOverlay').hidden = true;
+  }
+  document.getElementById('fabAddBtn').addEventListener('click', openAddModal);
+  document.getElementById('addModalClose').addEventListener('click', closeAddModal);
+  document.getElementById('addModalOverlay').addEventListener('click', (e) => { if(e.target.id === 'addModalOverlay') closeAddModal(); });
+  document.getElementById('emptyAddBtn').addEventListener('click', openAddModal);
   document.getElementById('friendsBtn').addEventListener('click', () => switchView('friends'));
   document.getElementById('backToFriendsBtn').addEventListener('click', () => switchView('friends'));
   document.getElementById('backToGalleryBtn').addEventListener('click', () => switchView('gallery'));
@@ -751,7 +760,7 @@
     subscribeStars();
     subscribeFriendRequests();
     subscribeFriends();
-    switchView('add');
+    switchView('gallery');
   }
 
   async function fetchLastSeen(uid){
@@ -1121,8 +1130,14 @@
       currentFriendStars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderGenericGallery(currentFriendStars, 'friendGalleryContent', 'friendGalleryEmpty', 'view');
     }catch(err){
-      console.error(err);
-      document.getElementById('friendGalleryContent').innerHTML = '<p class="friend-empty">Impossible de charger ce Pokédex.</p>';
+      console.error('openFriendGallery error:', err.code, err.message);
+      if(err.code === 'failed-precondition'){
+        document.getElementById('friendGalleryContent').innerHTML = '<p class="friend-empty">Configuration Firestore manquante — ouvre la console du navigateur (F12), un lien "Créer l\'index" doit y apparaître. Clique dessus puis recharge la page.</p>';
+      }else if(err.code === 'permission-denied'){
+        document.getElementById('friendGalleryContent').innerHTML = '<p class="friend-empty">Accès refusé par les règles Firestore.</p>';
+      }else{
+        document.getElementById('friendGalleryContent').innerHTML = `<p class="friend-empty">Impossible de charger ce Pokédex (${escapeHtml(err.code || err.message || 'erreur inconnue')}).</p>`;
+      }
     }
   }
 
@@ -1213,6 +1228,7 @@
     if(photoUrl){
       await saveStar({ fullName, date, description, photoUrl, points, pointsSource, metricValue: views });
       resetForm();
+      closeAddModal();
       showToast(`${fullName} a rejoint le Pokédex (${points} pts)`);
     }else{
       pendingStar = { fullName, date, description, points, pointsSource, metricValue: views };
@@ -1246,6 +1262,7 @@
     const name = pendingStar.fullName;
     pendingStar = null; pendingPhotoDataUrl = null;
     resetForm();
+    closeAddModal();
     showToast(`${name} a rejoint le Pokédex`);
   });
   document.getElementById('cancelManualBtn').addEventListener('click', () => {
@@ -1369,7 +1386,6 @@
   }
 
   function renderMyGallery(){
-    document.getElementById('countBadge').textContent = starsCache.length;
     renderGenericGallery(starsCache, 'galleryContent', 'galleryEmpty', 'edit');
   }
 
