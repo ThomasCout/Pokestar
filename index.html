@@ -258,6 +258,7 @@
   }
   .rank-name{ flex:1; font-weight:600; font-size:0.87rem; min-width:0; }
   .rank-name .you-tag{ display:block; font-size:0.66rem; font-weight:600; color:var(--accent-1); margin-top:1px; }
+  .rank-substat{ display:block; font-size:0.72rem; font-weight:500; color:var(--text-lighter); margin-top:1px; }
   .rank-count{
     background: var(--bg-hover); color: var(--text-light); font-weight:700; font-size:0.76rem;
     padding:5px 10px; border-radius:999px; white-space:nowrap; flex-shrink:0;
@@ -494,6 +495,11 @@
     <div class="form-footer" style="padding-top:12px;">
       <button type="button" id="savePseudoBtn" class="btn btn-primary btn-sm">Enregistrer le pseudo</button>
     </div>
+
+    <div class="block-label" style="margin-top:22px;">Rattrapage des points</div>
+    <p class="block-sub">Recalcule les points des stars ajoutées avant cette fonctionnalité.</p>
+    <button type="button" id="recalcPointsBtn" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);">Rattraper mes anciennes stars</button>
+    <p id="recalcStatus" class="block-sub" style="margin-top:8px;" hidden></p>
 
     <p id="profileError" class="auth-error" hidden></p>
     <p id="profileSuccess" class="auth-success" hidden></p>
@@ -738,7 +744,7 @@
 
   function logIn(user){
     currentUser = user;
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(user));
+    localStorage.setItem(LOCAL_KEY, JSON.stringify({ uid: user.uid, pseudo: user.pseudo }));
     document.getElementById('avatarInitials').textContent = getInitials(currentUser.pseudo);
     document.getElementById('headerActions').hidden = false;
     document.getElementById('syncDot').classList.remove('offline');
@@ -746,6 +752,14 @@
     subscribeFriendRequests();
     subscribeFriends();
     switchView('add');
+  }
+
+  async function fetchLastSeen(uid){
+    try{
+      const doc = await db.collection('users').doc(uid).get();
+      if(doc.exists) return doc.data().lastSeenNotificationsAt || null;
+    }catch(e){ console.error(e); }
+    return null;
   }
 
   function cleanupListeners(){
@@ -808,10 +822,10 @@
     await Promise.all(friendsCache.map(async f => {
       try{
         const snap = await starsCollection.where('ownerId', '==', f.uid).get();
-        let total = 0;
-        snap.forEach(doc => { total += (doc.data().points || 0); });
-        totals[f.uid] = total;
-      }catch(e){ totals[f.uid] = 0; }
+        let points = 0;
+        snap.forEach(doc => { points += (doc.data().points || 0); });
+        totals[f.uid] = { points, count: snap.size };
+      }catch(e){ totals[f.uid] = { points: 0, count: 0 }; }
     }));
     friendCounts = totals;
     renderRanking();
@@ -821,12 +835,17 @@
     const container = document.getElementById('rankingList');
     if(!container || !currentUser) return;
 
-    const myTotal = starsCache.reduce((sum, s) => sum + (s.points || 0), 0);
+    const myPoints = starsCache.reduce((sum, s) => sum + (s.points || 0), 0);
     const rows = [
-      { uid: currentUser.uid, pseudo: currentUser.pseudo, total: myTotal, isMe: true },
-      ...friendsCache.map(f => ({ uid: f.uid, pseudo: f.pseudo, total: friendCounts[f.uid] ?? 0, isMe: false }))
+      { uid: currentUser.uid, pseudo: currentUser.pseudo, points: myPoints, count: starsCache.length, isMe: true },
+      ...friendsCache.map(f => ({
+        uid: f.uid, pseudo: f.pseudo,
+        points: friendCounts[f.uid]?.points ?? 0,
+        count: friendCounts[f.uid]?.count ?? 0,
+        isMe: false
+      }))
     ];
-    rows.sort((a, b) => b.total - a.total);
+    rows.sort((a, b) => b.points - a.points);
 
     if(rows.length === 1){
       container.innerHTML = '<p class="friend-empty">Ajoute des amis pour voir le classement !</p>';
@@ -844,12 +863,13 @@
       const tag = r.isMe ? 'div' : 'button';
       const typeAttr = r.isMe ? '' : 'type="button"';
       const dataAttr = r.isMe ? '' : `data-uid="${r.uid}" data-pseudo="${escapeHtml(r.pseudo)}"`;
+      const starLabel = r.count + (r.count > 1 ? ' stars' : ' star');
       return `
         <${tag} ${typeAttr} class="rank-row${meClass}" ${dataAttr}>
           <span class="rank-num ${rankClass}">${rank}</span>
           <span class="rank-avatar" style="background:linear-gradient(135deg,${gradient[0]},${gradient[1]});">${getInitials(r.pseudo)}</span>
-          <span class="rank-name">${nameHtml}</span>
-          <span class="rank-count">★ ${r.total} pts</span>
+          <span class="rank-name">${nameHtml}<span class="rank-substat">${starLabel}</span></span>
+          <span class="rank-count">★ ${r.points} pts</span>
         </${tag}>
       `;
     }).join('');
@@ -988,9 +1008,38 @@
     await batch.commit();
 
     currentUser.pseudo = newPseudo;
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(currentUser));
+    localStorage.setItem(LOCAL_KEY, JSON.stringify({ uid: currentUser.uid, pseudo: currentUser.pseudo }));
     document.getElementById('avatarInitials').textContent = getInitials(newPseudo);
     showProfileSuccess('Pseudo mis à jour !');
+  });
+
+  document.getElementById('recalcPointsBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('recalcPointsBtn');
+    const status = document.getElementById('recalcStatus');
+    const toRecalc = starsCache.filter(s => !s.pointsSource);
+    if(toRecalc.length === 0){
+      status.hidden = false;
+      status.textContent = 'Toutes tes stars ont déjà des points, rien à rattraper !';
+      return;
+    }
+    btn.disabled = true;
+    status.hidden = false;
+    let done = 0;
+    for(const star of toRecalc){
+      status.textContent = `Rattrapage en cours... (${done + 1}/${toRecalc.length}) ${star.fullName}`;
+      try{
+        const { views } = await lookupWikipedia(star.fullName);
+        const { points } = computePoints(views);
+        const pointsSource = (views && views > 0) ? 'wikipedia' : 'default';
+        await starsCollection.doc(star.id).update({ points, pointsSource, metricValue: views });
+      }catch(err){
+        console.error('Recalc error for', star.fullName, err);
+      }
+      done++;
+    }
+    btn.disabled = false;
+    status.textContent = `Terminé : ${done} star(s) mises à jour avec leurs points.`;
+    showToast('Rattrapage des points terminé');
   });
 
   // ---------- friends: search & requests ----------
@@ -1389,13 +1438,18 @@
   if(!isConfigured){
     switchView('pseudo');
   }else{
-    const saved = localStorage.getItem(LOCAL_KEY);
-    if(saved){
-      try{ logIn(JSON.parse(saved)); }
-      catch(e){ switchView('pseudo'); }
-    }else{
-      switchView('pseudo');
-    }
+    (async () => {
+      const saved = localStorage.getItem(LOCAL_KEY);
+      if(saved){
+        try{
+          const cached = JSON.parse(saved);
+          const lastSeenAt = await fetchLastSeen(cached.uid);
+          logIn({ uid: cached.uid, pseudo: cached.pseudo, lastSeenAt });
+        }catch(e){ switchView('pseudo'); }
+      }else{
+        switchView('pseudo');
+      }
+    })();
   }
 </script>
 </body>
