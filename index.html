@@ -114,7 +114,7 @@
   }
   .toggle-indicator.pos-1{ transform: translateX(100%); }
 
-  main{ padding: 8px 24px 80px; }
+  main{ padding: 8px 24px 110px; }
   .screen{ animation: fadeIn 220ms ease; }
   @keyframes fadeIn{ from{ opacity:0; transform: translateY(4px);} to{opacity:1; transform:none;} }
 
@@ -322,8 +322,8 @@
   [hidden]{ display:none !important; }
 
   .fab-btn{
-    position: fixed; bottom: 28px; right: 24px; z-index: 40;
-    width: 58px; height: 58px; border-radius: 50%; border: none;
+    position: fixed; bottom: 22px; right: 20px; z-index: 40;
+    width: 56px; height: 56px; border-radius: 50%; border: none;
     background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); color: #fff;
     font-size: 1.8rem; font-weight: 400; line-height:1;
     display:flex; align-items:center; justify-content:center;
@@ -332,9 +332,31 @@
   }
   .fab-btn:active{ transform: scale(0.94); }
 
+  .bottom-nav{
+    position: fixed; left: 20px; right: 92px; bottom: 20px; z-index: 35;
+    display:flex; gap: 4px;
+    background: rgba(21,19,31,0.86); backdrop-filter: blur(14px);
+    border: 1px solid var(--border-strong); border-radius: 999px;
+    padding: 5px; box-shadow: 0 14px 34px rgba(0,0,0,0.4);
+    max-width: 380px; margin: 0 auto;
+  }
+  .bottom-nav-btn{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:7px;
+    border:none; background:transparent; border-radius:999px; padding:11px 12px;
+    color: var(--text-light); font-weight:600; font-size:0.82rem;
+    font-family: inherit; transition: background 160ms ease, color 160ms ease;
+  }
+  .bottom-nav-btn.active{
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); color:#fff;
+    box-shadow: 0 6px 16px rgba(255,46,154,0.30);
+  }
+  .bottom-nav-icon{ font-size:1.05rem; line-height:1; position:relative; display:inline-flex; }
+  .bottom-nav-label{ white-space:nowrap; }
+  .bottom-nav-icon .badge{ top:-8px; right:-10px; }
+
   @media (max-width: 520px){
     .add-hero h1{ font-size: 1.45rem; }
-    main{ padding: 6px 16px 90px; }
+    main{ padding: 6px 16px 110px; }
     .topbar{ padding: 16px 16px 0; }
     .page-card{ padding: 8px 14px 20px; }
   }
@@ -353,12 +375,21 @@
       <div class="brand"><span class="brand-star">✦</span> Pokéstar <span class="sync-dot" id="syncDot"></span></div>
       <div class="header-actions" id="headerActions" hidden>
         <button type="button" id="notifBtn" class="icon-btn" title="Notifications">🔔<span class="badge" id="notifBadge" hidden>0</span></button>
-        <button type="button" id="friendsBtn" class="icon-btn" title="Amis">👥<span class="badge" id="friendReqBadge" hidden>0</span></button>
         <button type="button" id="profileBtn" class="icon-btn avatar-btn" title="Profil"><span id="avatarInitials">?</span></button>
       </div>
     </div>
   </header>
 
+  <nav id="bottomNav" class="bottom-nav" hidden>
+    <button type="button" id="navGalleryBtn" class="bottom-nav-btn active">
+      <span class="bottom-nav-icon">✦</span>
+      <span class="bottom-nav-label">Pokédex</span>
+    </button>
+    <button type="button" id="navFriendsBtn" class="bottom-nav-btn">
+      <span class="bottom-nav-icon">👥<span class="badge" id="friendReqBadge" hidden>0</span></span>
+      <span class="bottom-nav-label">Amis</span>
+    </button>
+  </nav>
   <button type="button" id="fabAddBtn" class="fab-btn" hidden title="Ajouter une star">+</button>
 
   <main>
@@ -683,6 +714,14 @@
   function switchView(name){
     ALL_VIEWS.forEach(id => { document.getElementById(id).hidden = (id !== 'screen' + capitalize(name)); });
     document.getElementById('fabAddBtn').hidden = !(name === 'gallery' && currentUser);
+
+    const showBottomNav = (name === 'gallery' || name === 'friends') && currentUser;
+    document.getElementById('bottomNav').hidden = !showBottomNav;
+    if(showBottomNav){
+      document.getElementById('navGalleryBtn').classList.toggle('active', name === 'gallery');
+      document.getElementById('navFriendsBtn').classList.toggle('active', name === 'friends');
+    }
+
     if(name === 'gallery') renderMyGallery();
     if(name === 'friends'){
       document.getElementById('friendSearchResults').innerHTML = '';
@@ -708,7 +747,8 @@
   document.getElementById('addModalClose').addEventListener('click', closeAddModal);
   document.getElementById('addModalOverlay').addEventListener('click', (e) => { if(e.target.id === 'addModalOverlay') closeAddModal(); });
   document.getElementById('emptyAddBtn').addEventListener('click', openAddModal);
-  document.getElementById('friendsBtn').addEventListener('click', () => switchView('friends'));
+  document.getElementById('navGalleryBtn').addEventListener('click', () => switchView('gallery'));
+  document.getElementById('navFriendsBtn').addEventListener('click', () => switchView('friends'));
   document.getElementById('backToFriendsBtn').addEventListener('click', () => switchView('friends'));
   document.getElementById('backToGalleryBtn').addEventListener('click', () => switchView('gallery'));
 
