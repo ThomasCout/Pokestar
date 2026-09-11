@@ -425,9 +425,6 @@
 
     <!-- ===================== FRIENDS ===================== -->
     <section id="screenFriends" class="screen" hidden>
-      <div class="screen-header-row">
-        <button type="button" id="backToGalleryBtn" class="btn btn-ghost btn-sm">← Retour à mon Pokédex</button>
-      </div>
       <div class="add-hero">
         <h1>Mes amis</h1>
         <p class="subtitle">Retrouve tes amis et découvre les stars qu'ils ont chopées.</p>
@@ -457,7 +454,6 @@
     <!-- ===================== FRIEND GALLERY (read-only) ===================== -->
     <section id="screenFriendGallery" class="screen" hidden>
       <div class="friend-gallery-header">
-        <button type="button" id="backToFriendsBtn" class="btn btn-ghost btn-sm" style="align-self:flex-start;">← Retour aux amis</button>
         <h1 id="friendGalleryTitle"></h1>
       </div>
       <div id="friendGalleryEmpty" class="empty-state" hidden><p>Cette personne n'a pas encore de star.</p></div>
@@ -713,13 +709,14 @@
   const ALL_VIEWS = ['screenPseudo','screenGallery','screenFriends','screenFriendGallery'];
   function switchView(name){
     ALL_VIEWS.forEach(id => { document.getElementById(id).hidden = (id !== 'screen' + capitalize(name)); });
-    document.getElementById('fabAddBtn').hidden = !(name === 'gallery' && currentUser);
 
-    const showBottomNav = (name === 'gallery' || name === 'friends') && currentUser;
-    document.getElementById('bottomNav').hidden = !showBottomNav;
-    if(showBottomNav){
-      document.getElementById('navGalleryBtn').classList.toggle('active', name === 'gallery');
-      document.getElementById('navFriendsBtn').classList.toggle('active', name === 'friends');
+    const isLoggedView = name !== 'pseudo' && currentUser;
+    document.getElementById('fabAddBtn').hidden = !isLoggedView;
+    document.getElementById('bottomNav').hidden = !isLoggedView;
+    if(isLoggedView){
+      const galleryActive = name === 'gallery';
+      document.getElementById('navGalleryBtn').classList.toggle('active', galleryActive);
+      document.getElementById('navFriendsBtn').classList.toggle('active', !galleryActive);
     }
 
     if(name === 'gallery') renderMyGallery();
@@ -749,8 +746,6 @@
   document.getElementById('emptyAddBtn').addEventListener('click', openAddModal);
   document.getElementById('navGalleryBtn').addEventListener('click', () => switchView('gallery'));
   document.getElementById('navFriendsBtn').addEventListener('click', () => switchView('friends'));
-  document.getElementById('backToFriendsBtn').addEventListener('click', () => switchView('friends'));
-  document.getElementById('backToGalleryBtn').addEventListener('click', () => switchView('gallery'));
 
   // ---------- identification par pseudo (sans mot de passe) ----------
   function showPseudoError(msg){ const el = document.getElementById('pseudoError'); el.textContent = msg; el.hidden = false; }
