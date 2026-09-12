@@ -1346,12 +1346,12 @@
   // ---------- points / niveaux ----------
   function computePoints(n){
     if(!n || n <= 0) return { level: 1, points: 5 };
-    if(n < 1000) return { level: 1, points: 5 };
-    if(n < 10000) return { level: 2, points: 10 };
-    if(n < 100000) return { level: 3, points: 25 };
-    if(n < 1000000) return { level: 4, points: 50 };
-    if(n < 10000000) return { level: 5, points: 100 };
-    return { level: 6, points: 200 };
+    if(n < 200) return { level: 1, points: 5 };
+    if(n < 1000) return { level: 2, points: 10 };
+    if(n < 5000) return { level: 3, points: 15 };
+    if(n < 20000) return { level: 4, points: 25 };
+    if(n < 100000) return { level: 5, points: 50 };
+    return { level: 6, points: 100 };
   }
   function formatMetric(n){
     if(n >= 1000000) return (n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1) + 'M';
