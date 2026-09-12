@@ -485,9 +485,12 @@
     </div>
 
     <div class="block-label" style="margin-top:22px;">Rattrapage des points</div>
-    <p class="block-sub">Recalcule les points des stars ajoutées avant cette fonctionnalité.</p>
-    <button type="button" id="recalcPointsBtn" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);">Rattraper mes anciennes stars</button>
+    <p class="block-sub">Recalcule les points de toutes tes stars avec les derniers critères en date.</p>
+    <button type="button" id="recalcPointsBtn" class="btn btn-ghost btn-sm" style="border:1px solid var(--border);">Recalculer mes stars</button>
     <p id="recalcStatus" class="block-sub" style="margin-top:8px;" hidden></p>
+
+    <button type="button" id="recalcAllBtn" class="btn btn-ghost btn-sm" style="border:1px solid var(--border); margin-top:8px;">Recalculer les stars de TOUT LE MONDE</button>
+    <p id="recalcAllStatus" class="block-sub" style="margin-top:8px;" hidden></p>
 
     <p id="profileError" class="auth-error" hidden></p>
     <p id="profileSuccess" class="auth-success" hidden></p>
@@ -1060,30 +1063,72 @@
   document.getElementById('recalcPointsBtn').addEventListener('click', async () => {
     const btn = document.getElementById('recalcPointsBtn');
     const status = document.getElementById('recalcStatus');
-    const toRecalc = starsCache.filter(s => !s.pointsSource);
+    const toRecalc = starsCache.slice();
     if(toRecalc.length === 0){
       status.hidden = false;
-      status.textContent = 'Toutes tes stars ont déjà des points, rien à rattraper !';
+      status.textContent = "Tu n'as encore aucune star à recalculer.";
       return;
     }
     btn.disabled = true;
     status.hidden = false;
     let done = 0;
     for(const star of toRecalc){
-      status.textContent = `Rattrapage en cours... (${done + 1}/${toRecalc.length}) ${star.fullName}`;
+      status.textContent = `Recalcul en cours... (${done + 1}/${toRecalc.length}) ${star.fullName}`;
       try{
-        const { views } = await lookupWikipedia(star.fullName);
-        const { points } = computePoints(views);
-        const pointsSource = (views && views > 0) ? 'wikipedia' : 'default';
-        await starsCollection.doc(star.id).update({ points, pointsSource, metricValue: views });
+        const { views, langCount } = await lookupWikipedia(star.fullName);
+        const { points } = computePoints(views, langCount);
+        const pointsSource = (views || langCount) ? 'wikipedia' : 'default';
+        await starsCollection.doc(star.id).update({ points, pointsSource, metricValue: views, langCount: langCount || null });
       }catch(err){
         console.error('Recalc error for', star.fullName, err);
       }
       done++;
     }
     btn.disabled = false;
-    status.textContent = `Terminé : ${done} star(s) mises à jour avec leurs points.`;
-    showToast('Rattrapage des points terminé');
+    status.textContent = `Terminé : ${done} star(s) recalculée(s).`;
+    showToast('Recalcul des points terminé');
+  });
+
+  document.getElementById('recalcAllBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('recalcAllBtn');
+    const status = document.getElementById('recalcAllStatus');
+    btn.disabled = true;
+    status.hidden = false;
+    status.textContent = 'Récupération de toutes les stars...';
+
+    let allStars = [];
+    try{
+      const snap = await starsCollection.get();
+      allStars = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }catch(err){
+      console.error(err);
+      status.textContent = "Impossible de récupérer les stars (vérifie les règles Firestore).";
+      btn.disabled = false;
+      return;
+    }
+
+    if(allStars.length === 0){
+      status.textContent = 'Aucune star trouvée dans la base.';
+      btn.disabled = false;
+      return;
+    }
+
+    let done = 0;
+    for(const star of allStars){
+      status.textContent = `Recalcul global... (${done + 1}/${allStars.length}) ${star.fullName} — ${star.ownerPseudo || '?'}`;
+      try{
+        const { views, langCount } = await lookupWikipedia(star.fullName);
+        const { points } = computePoints(views, langCount);
+        const pointsSource = (views || langCount) ? 'wikipedia' : 'default';
+        await starsCollection.doc(star.id).update({ points, pointsSource, metricValue: views, langCount: langCount || null });
+      }catch(err){
+        console.error('Recalc error for', star.fullName, err);
+      }
+      done++;
+    }
+    btn.disabled = false;
+    status.textContent = `Terminé : ${done} star(s) recalculée(s), tous utilisateurs confondus.`;
+    showToast('Recalcul global terminé');
   });
 
   // ---------- friends: search & requests ----------
@@ -1186,10 +1231,10 @@
 
     const pointsEl = document.getElementById('viewModalPoints');
     if(star.points > 0){
-      const sourceLabel = star.pointsSource === 'wikipedia'
-        ? `${formatMetric(star.metricValue)} vues Wikipédia/mois`
-        : '';
-      pointsEl.textContent = `★ ${star.points} pts${sourceLabel ? ' · ' + sourceLabel : ''}`;
+      const parts = [];
+      if(star.metricValue) parts.push(`${formatMetric(star.metricValue)} vues/mois`);
+      if(star.langCount) parts.push(`${star.langCount} langues`);
+      pointsEl.textContent = `★ ${star.points} pts${parts.length ? ' · ' + parts.join(' · ') : ''}`;
       pointsEl.hidden = false;
     }else{
       pointsEl.hidden = true;
@@ -1240,6 +1285,7 @@
       points: star.points || 0,
       pointsSource: star.pointsSource || null,
       metricValue: star.metricValue || null,
+      langCount: star.langCount || null,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   }
@@ -1256,17 +1302,17 @@
     submitBtn.textContent = 'Recherche en cours...';
     showPhotoStatus('Recherche de la photo et des points sur Wikipédia...');
 
-    const { photoUrl, views } = await lookupWikipedia(fullName);
-    const { points } = computePoints(views);
-    const pointsSource = (views && views > 0) ? 'wikipedia' : 'default';
+    const { photoUrl, views, langCount } = await lookupWikipedia(fullName);
+    const { points } = computePoints(views, langCount);
+    const pointsSource = (views || langCount) ? 'wikipedia' : 'default';
 
     if(photoUrl){
-      await saveStar({ fullName, date, description, photoUrl, points, pointsSource, metricValue: views });
+      await saveStar({ fullName, date, description, photoUrl, points, pointsSource, metricValue: views, langCount });
       resetForm();
       closeAddModal();
       showToast(`${fullName} a rejoint le Pokédex (${points} pts)`);
     }else{
-      pendingStar = { fullName, date, description, points, pointsSource, metricValue: views };
+      pendingStar = { fullName, date, description, points, pointsSource, metricValue: views, langCount };
       pendingPhotoDataUrl = null;
 
       document.getElementById('manualPhotoSection').hidden = false;
@@ -1309,18 +1355,21 @@
   async function lookupWikipedia(query){
     try{
       const searchRes = await fetch(`https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`);
-      if(!searchRes.ok) return { photoUrl:null, views:null };
+      if(!searchRes.ok) return { photoUrl:null, views:null, langCount:null };
       const searchData = await searchRes.json();
       const title = searchData?.query?.search?.[0]?.title;
-      if(!title) return { photoUrl:null, views:null };
+      if(!title) return { photoUrl:null, views:null, langCount:null };
 
       const summaryRes = await fetch(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
       const summaryData = summaryRes.ok ? await summaryRes.json() : null;
       const photoUrl = summaryData?.thumbnail?.source || summaryData?.originalimage?.source || null;
 
-      const views = await fetchWikipediaPageviews(title);
-      return { photoUrl, views };
-    }catch(e){ return { photoUrl:null, views:null }; }
+      const [views, langCount] = await Promise.all([
+        fetchWikipediaPageviews(title),
+        fetchWikipediaLanguageCount(title)
+      ]);
+      return { photoUrl, views, langCount };
+    }catch(e){ return { photoUrl:null, views:null, langCount:null }; }
   }
 
   function pageviewsDateRange(){
@@ -1343,15 +1392,57 @@
     }catch(e){ return null; }
   }
 
-  // ---------- points / niveaux ----------
-  function computePoints(n){
-    if(!n || n <= 0) return { level: 1, points: 5 };
-    if(n < 200) return { level: 1, points: 5 };
-    if(n < 1000) return { level: 2, points: 10 };
-    if(n < 5000) return { level: 3, points: 15 };
-    if(n < 20000) return { level: 4, points: 25 };
-    if(n < 100000) return { level: 5, points: 50 };
-    return { level: 6, points: 100 };
+  async function fetchWikipediaLanguageCount(title){
+    try{
+      const url = `https://fr.wikipedia.org/w/api.php?action=query&prop=langlinks&lllimit=500&titles=${encodeURIComponent(title)}&format=json&origin=*`;
+      const res = await fetch(url);
+      if(!res.ok) return null;
+      const data = await res.json();
+      const pages = data?.query?.pages;
+      if(!pages) return null;
+      const page = Object.values(pages)[0];
+      if(!page || page.missing !== undefined) return null;
+      const langlinks = page.langlinks || [];
+      return langlinks.length + 1; // +1 pour l'édition française elle-même
+    }catch(e){ return null; }
+  }
+
+  // ---------- points / niveaux (croisement vues Wikipédia + nombre de langues) ----------
+  function pointsFromViews(n){
+    if(!n || n <= 0) return null;
+    if(n < 200) return 5;
+    if(n < 1000) return 10;
+    if(n < 5000) return 15;
+    if(n < 20000) return 25;
+    if(n < 100000) return 50;
+    return 100;
+  }
+  function pointsFromLanguages(n){
+    if(!n || n <= 0) return null;
+    if(n < 4) return 5;
+    if(n < 10) return 10;
+    if(n < 20) return 15;
+    if(n < 40) return 25;
+    if(n < 80) return 50;
+    return 100;
+  }
+  function levelFromPoints(points){
+    if(points <= 5) return 1;
+    if(points <= 10) return 2;
+    if(points <= 15) return 3;
+    if(points <= 25) return 4;
+    if(points <= 50) return 5;
+    return 6;
+  }
+  function computePoints(views, langCount){
+    const pv = pointsFromViews(views);
+    const pl = pointsFromLanguages(langCount);
+    let points;
+    if(pv !== null && pl !== null) points = Math.round((pv + pl) / 2);
+    else if(pv !== null) points = pv;
+    else if(pl !== null) points = pl;
+    else points = 5;
+    return { level: levelFromPoints(points), points };
   }
   function formatMetric(n){
     if(n >= 1000000) return (n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1) + 'M';
