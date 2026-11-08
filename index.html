@@ -940,7 +940,8 @@
       .orderBy('createdAt', 'desc')
       .limit(30)
       .onSnapshot(snap => {
-        notificationsCache = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.createdAt);
+        // Les ajouts de la star secrète (photo automatique) ne génèrent jamais de notification
+        notificationsCache = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.createdAt && !photoForName(s.fullName));
         renderNotifications();
         updateNotifBadge();
       }, err => {
