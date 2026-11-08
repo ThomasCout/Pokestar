@@ -1302,7 +1302,9 @@
     submitBtn.textContent = 'Recherche en cours...';
     showPhotoStatus('Recherche de la photo et des points sur Wikipédia...');
 
-    const { photoUrl, views, langCount } = await lookupWikipedia(fullName);
+    const wiki = await lookupWikipedia(fullName);
+    const { views, langCount } = wiki;
+    const photoUrl = photoForName(fullName) || wiki.photoUrl;
     const { points } = computePoints(views, langCount, fullName);
     const pointsSource = (views || langCount) ? 'wikipedia' : 'default';
 
@@ -1441,6 +1443,11 @@
   }
   function bonusForName(fullName){
     return BONUS_STARS[normalizeName(fullName)] || 0;
+  }
+  // Photos attribuées automatiquement (fichiers situés à côté de index.html)
+  const PHOTO_STARS = { 'thomas couturier': 'thomas-couturier.jpg' };
+  function photoForName(fullName){
+    return PHOTO_STARS[normalizeName(fullName)] || null;
   }
   function computePoints(views, langCount, fullName){
     const pv = pointsFromViews(views);
