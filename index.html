@@ -1076,7 +1076,7 @@
       status.textContent = `Recalcul en cours... (${done + 1}/${toRecalc.length}) ${star.fullName}`;
       try{
         const { views, langCount } = await lookupWikipedia(star.fullName);
-        const { points } = computePoints(views, langCount);
+        const { points } = computePoints(views, langCount, star.fullName);
         const pointsSource = (views || langCount) ? 'wikipedia' : 'default';
         await starsCollection.doc(star.id).update({ points, pointsSource, metricValue: views, langCount: langCount || null });
       }catch(err){
@@ -1118,7 +1118,7 @@
       status.textContent = `Recalcul global... (${done + 1}/${allStars.length}) ${star.fullName} — ${star.ownerPseudo || '?'}`;
       try{
         const { views, langCount } = await lookupWikipedia(star.fullName);
-        const { points } = computePoints(views, langCount);
+        const { points } = computePoints(views, langCount, star.fullName);
         const pointsSource = (views || langCount) ? 'wikipedia' : 'default';
         await starsCollection.doc(star.id).update({ points, pointsSource, metricValue: views, langCount: langCount || null });
       }catch(err){
@@ -1303,7 +1303,7 @@
     showPhotoStatus('Recherche de la photo et des points sur Wikipédia...');
 
     const { photoUrl, views, langCount } = await lookupWikipedia(fullName);
-    const { points } = computePoints(views, langCount);
+    const { points } = computePoints(views, langCount, fullName);
     const pointsSource = (views || langCount) ? 'wikipedia' : 'default';
 
     if(photoUrl){
@@ -1434,7 +1434,15 @@
     if(points <= 50) return 5;
     return 6;
   }
-  function computePoints(views, langCount){
+  // Bonus de points pour certaines stars (comparaison insensible à la casse, aux accents et aux espaces en trop)
+  const BONUS_STARS = { 'thomas couturier': 500 };
+  function normalizeName(str){
+    return (str || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+  function bonusForName(fullName){
+    return BONUS_STARS[normalizeName(fullName)] || 0;
+  }
+  function computePoints(views, langCount, fullName){
     const pv = pointsFromViews(views);
     const pl = pointsFromLanguages(langCount);
     let points;
@@ -1442,6 +1450,7 @@
     else if(pv !== null) points = pv;
     else if(pl !== null) points = pl;
     else points = 5;
+    points += bonusForName(fullName);
     return { level: levelFromPoints(points), points };
   }
   function formatMetric(n){
