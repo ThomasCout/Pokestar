@@ -143,6 +143,24 @@
   }
   .property-row input:focus{ background: var(--accent-soft); }
 
+  /* suggestions de stars */
+  .property-row-suggest{ position: relative; }
+  .suggest-list{
+    position:absolute; left:0; right:0; top:100%; z-index:20; margin-top:4px;
+    background: var(--bg-card); border:1px solid var(--border-strong); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow); overflow:hidden;
+  }
+  .suggest-item{ display:flex; align-items:center; gap:10px; padding:8px 10px; cursor:pointer; }
+  .suggest-item + .suggest-item{ border-top:1px solid var(--border); }
+  .suggest-item:hover, .suggest-item.active{ background: var(--bg-hover); }
+  .suggest-photo{
+    width:36px; height:36px; flex-shrink:0; border-radius:50%; object-fit:cover; background: var(--border);
+    display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:600; color: var(--text-light);
+  }
+  .suggest-text{ display:flex; flex-direction:column; min-width:0; }
+  .suggest-text strong{ font-size:0.9rem; font-weight:600; color: var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .suggest-text small{ font-size:0.75rem; color: var(--text-lighter); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
   .description-block{ padding: 16px 2px 4px; }
   .block-label{ color: var(--text-light); font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; }
   .description-block textarea{
@@ -511,9 +529,10 @@
 
     <form id="addForm">
       <div class="properties">
-        <div class="property-row">
+        <div class="property-row property-row-suggest">
           <div class="property-label"><span class="property-icon">Aa</span>Nom</div>
-          <input required id="fullName" type="text" placeholder="Marion Cotillard" autocomplete="off">
+          <input required id="fullName" type="text" placeholder="Marion Cotillard" autocomplete="off" aria-autocomplete="list" aria-controls="nameSuggest">
+          <div id="nameSuggest" class="suggest-list" role="listbox" hidden></div>
         </div>
         <div class="property-row">
           <div class="property-label"><span class="property-icon">📅</span>Date</div>
@@ -1371,6 +1390,129 @@
     pendingStar = null; pendingPhotoDataUrl = null;
     hideManualZone();
   });
+
+  // ---------- suggestions de stars (Wikipédia + filtre Wikidata « être humain ») ----------
+  // Les suggestions sont facultatives : le texte libre reste toujours possible.
+  (function setupNameSuggestions(){
+    const input = document.getElementById('fullName');
+    const list = document.getElementById('nameSuggest');
+    const WIKI_API = 'https://fr.wikipedia.org/w/api.php?action=query&prop=pageprops|pageimages|description&ppprop=wikibase_item&piprop=thumbnail&pithumbsize=72&format=json&origin=*';
+    const MAX_SUGGESTIONS = 6;
+    const humanCache = new Map();   // identifiant Wikidata -> true/false
+    let timer = null, reqId = 0, items = [], active = -1;
+
+    function hide(){ list.hidden = true; list.innerHTML = ''; items = []; active = -1; }
+
+    function setActive(i){
+      active = i;
+      list.querySelectorAll('.suggest-item').forEach((el, idx) => el.classList.toggle('active', idx === active));
+    }
+
+    function render(){
+      if(items.length === 0){ hide(); return; }
+      list.innerHTML = items.map((it, i) => `
+        <div class="suggest-item" role="option" data-i="${i}">
+          ${it.photo
+            ? `<img class="suggest-photo" src="${escapeHtml(it.photo)}" alt="" loading="lazy">`
+            : `<span class="suggest-photo">${escapeHtml(getInitials(it.name))}</span>`}
+          <span class="suggest-text"><strong>${escapeHtml(it.name)}</strong>${it.desc ? `<small>${escapeHtml(it.desc)}</small>` : ''}</span>
+        </div>`).join('');
+      active = -1;
+      list.hidden = false;
+    }
+
+    function pick(i){
+      if(!items[i]) return;
+      input.value = items[i].name;
+      hide();
+    }
+
+    async function wikiPages(params){
+      try{
+        const res = await fetch(WIKI_API + params);
+        if(!res.ok) return [];
+        const data = await res.json();
+        return Object.values(data?.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0));
+      }catch(e){ return []; }
+    }
+
+    // Renvoie l'ensemble des identifiants Wikidata qui sont des êtres humains (P31 = Q5), ou null si Wikidata ne répond pas.
+    async function fetchHumans(qids){
+      const unknown = qids.filter(q => !humanCache.has(q));
+      if(unknown.length){
+        try{
+          const sparql = `SELECT ?item WHERE { VALUES ?item { ${unknown.map(q => 'wd:' + q).join(' ')} } ?item wdt:P31 wd:Q5 }`;
+          const res = await fetch('https://query.wikidata.org/sparql?format=json&query=' + encodeURIComponent(sparql));
+          if(!res.ok) return null;
+          const data = await res.json();
+          const found = new Set((data?.results?.bindings || []).map(b => b.item.value.split('/').pop()));
+          unknown.forEach(q => humanCache.set(q, found.has(q)));
+        }catch(e){ return null; }
+      }
+      return new Set(qids.filter(q => humanCache.get(q)));
+    }
+
+    async function search(query){
+      const myReq = ++reqId;
+      const q = encodeURIComponent(query);
+      const [byPrefix, byText] = await Promise.all([
+        wikiPages(`&generator=prefixsearch&gpssearch=${q}&gpslimit=10`),
+        wikiPages(`&generator=search&gsrsearch=${q}&gsrlimit=10&gsrnamespace=0`)
+      ]);
+      if(myReq !== reqId) return;   // une frappe plus récente a pris le relais
+
+      const seen = new Set();
+      const candidates = [];
+      for(const p of [...byPrefix, ...byText]){
+        const qid = p.pageprops?.wikibase_item;
+        if(!qid || seen.has(p.pageid)) continue;
+        seen.add(p.pageid);
+        const name = p.title.replace(/\s*\(.*\)\s*$/, '').trim();
+        if(photoForName(name)) continue;   // la star secrète n'est jamais proposée : il faut taper son nom en entier
+        candidates.push({ qid, name, desc: p.description || '', photo: p.thumbnail?.source || null });
+      }
+
+      const humans = await fetchHumans(candidates.map(c => c.qid));
+      if(myReq !== reqId) return;
+      // Si Wikidata est indisponible, on affiche quand même les résultats Wikipédia (sans filtre).
+      const people = humans ? candidates.filter(c => humans.has(c.qid)) : candidates;
+
+      const uniqueNames = new Set();
+      items = people.filter(c => {
+        const key = normalizeName(c.name);
+        if(uniqueNames.has(key)) return false;
+        uniqueNames.add(key);
+        return true;
+      }).slice(0, MAX_SUGGESTIONS);
+      render();
+    }
+
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      const query = input.value.trim();
+      if(query.length < 2){ reqId++; hide(); return; }
+      timer = setTimeout(() => search(query), 300);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if(list.hidden || items.length === 0) return;
+      if(e.key === 'ArrowDown'){ e.preventDefault(); setActive((active + 1) % items.length); }
+      else if(e.key === 'ArrowUp'){ e.preventDefault(); setActive(active <= 0 ? items.length - 1 : active - 1); }
+      else if(e.key === 'Enter' && active >= 0){ e.preventDefault(); pick(active); }   // sans sélection, Entrée valide le texte libre
+      else if(e.key === 'Escape'){ hide(); }
+    });
+
+    // mousedown (et non click) : se déclenche avant la perte de focus du champ
+    list.addEventListener('mousedown', (e) => {
+      const row = e.target.closest('.suggest-item');
+      if(!row) return;
+      e.preventDefault();
+      pick(Number(row.dataset.i));
+    });
+
+    input.addEventListener('blur', () => { reqId++; clearTimeout(timer); setTimeout(hide, 120); });
+    document.getElementById('addForm').addEventListener('reset', () => { reqId++; clearTimeout(timer); hide(); });
+  })();
 
   // ---------- wikipedia (photo + popularité) ----------
   async function lookupWikipedia(query){
