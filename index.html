@@ -379,6 +379,14 @@
     .page-card{ padding: 8px 14px 20px; }
   }
   @media (prefers-reduced-motion: reduce){ *{ animation: none !important; transition: none !important; } }
+
+  /* iOS Safari zoome automatiquement sur tout champ dont la police fait moins de 16px :
+     on force 16px sur les écrans tactiles (sans bloquer le zoom manuel de l'utilisateur). */
+  html{ -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  @media (hover: none) and (pointer: coarse){
+    input:not([type=file]):not([type=checkbox]):not([type=radio]),
+    textarea, select{ font-size: 16px !important; }
+  }
 </style>
 </head>
 <body>
