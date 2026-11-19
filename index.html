@@ -191,13 +191,14 @@
   .photo-status{ font-size: 0.83rem; color: var(--text-light); padding: 4px 2px 0; }
 
   .manual-photo-zone{
-    margin-top: 14px; background: var(--bg-hover); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); padding: 14px 16px; display:flex; flex-direction:column; gap: 10px;
+    margin-top: 10px; padding: 0 2px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    font-size: 0.8rem; color: var(--text-lighter);
   }
-  .manual-photo-zone p{ margin:0; font-size: 0.85rem; color: var(--text); }
-  input[type=file]{ font-size: 0.82rem; color: var(--text-light); }
-  .manual-preview{ width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--border); }
-  .manual-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .manual-photo-zone[hidden]{ display:none; }
+  .manual-photo-link{ color: var(--accent-1); font-weight:500; cursor:pointer; }
+  .manual-photo-link:hover{ color:#FF5CB8; }
+  .manual-thumb{ width:28px; height:28px; object-fit:cover; border-radius:50%; border:1px solid var(--border); }
+  .manual-thumb[hidden]{ display:none; }
 
   /* ---------- Auth simplifié ---------- */
   .auth-error{ color:#FF6B8A; font-size:0.85rem; padding:12px 2px 0; text-align:center; }
@@ -556,15 +557,10 @@
       <div id="photoStatus" class="photo-status" hidden></div>
 
       <div id="manualPhotoZone" class="manual-photo-zone" hidden>
-        <div id="manualPhotoSection" hidden>
-          <p>Aucune photo trouvée sur Wikipédia. Tu peux en ajouter une toi-même :</p>
-          <input type="file" id="manualPhotoInput" accept="image/*">
-          <div id="manualPreviewWrap"></div>
-        </div>
-        <div class="manual-actions">
-          <button type="button" id="confirmManualBtn" class="btn btn-primary">Valider la carte</button>
-          <button type="button" id="cancelManualBtn" class="btn btn-ghost">Annuler</button>
-        </div>
+        <span id="manualPhotoMsg">Photo introuvable sur Wikipédia.</span>
+        <img id="manualThumb" class="manual-thumb" alt="" hidden>
+        <label for="manualPhotoInput" id="manualPhotoLink" class="manual-photo-link">Ajouter une photo</label>
+        <input type="file" id="manualPhotoInput" accept="image/*" hidden>
       </div>
 
       <div class="form-footer">
@@ -1291,8 +1287,9 @@
   function hideManualZone(){
     document.getElementById('manualPhotoZone').hidden = true;
     document.getElementById('manualPhotoInput').value = '';
-    document.getElementById('manualPreviewWrap').innerHTML = '';
-    document.getElementById('manualPhotoSection').hidden = true;
+    document.getElementById('manualThumb').hidden = true;
+    document.getElementById('manualPhotoMsg').textContent = 'Photo introuvable sur Wikipédia.';
+    document.getElementById('manualPhotoLink').textContent = 'Ajouter une photo';
     hidePhotoStatus();
   }
   function resetForm(){
@@ -1326,6 +1323,27 @@
     if(!fullName || !date) return;
 
     const submitBtn = document.getElementById('submitBtn');
+
+    // 2e validation, après « Photo introuvable » : on enregistre avec la photo ajoutée à la main (ou sans photo)
+    if(pendingStar && normalizeName(pendingStar.fullName) === normalizeName(fullName)){
+      submitBtn.disabled = true;
+      try{
+        await saveStar({ ...pendingStar, fullName, date, description, photoUrl: pendingPhotoDataUrl });
+        pendingStar = null; pendingPhotoDataUrl = null;
+        resetForm();
+        closeAddModal();
+        showToast(`${fullName} a rejoint le Pokédex`);
+      }catch(err){
+        console.error('Save error:', err);
+        showToast("Impossible d'enregistrer la star, réessaie.");
+      }
+      submitBtn.disabled = false;
+      return;
+    }
+    // Nom modifié depuis : on repart de zéro
+    pendingStar = null; pendingPhotoDataUrl = null;
+    hideManualZone();
+
     submitBtn.disabled = true;
     submitBtn.textContent = 'Recherche en cours...';
     showPhotoStatus('Recherche de la photo et des points sur Wikipédia...');
@@ -1363,8 +1381,7 @@
       pendingStar = { fullName, date, description, points, pointsSource, metricValue: views, langCount };
       pendingPhotoDataUrl = null;
 
-      document.getElementById('manualPhotoSection').hidden = false;
-      showPhotoStatus(`Photo introuvable sur Wikipédia (${points} pts attribués automatiquement).`);
+      hidePhotoStatus();
       document.getElementById('manualPhotoZone').hidden = false;
     }
     submitBtn.disabled = false;
@@ -1374,29 +1391,23 @@
   document.getElementById('manualPhotoInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if(!file) return;
-    document.getElementById('manualPreviewWrap').innerHTML = '<p class="photo-status">Compression de l\'image...</p>';
+    const msg = document.getElementById('manualPhotoMsg');
+    const thumb = document.getElementById('manualThumb');
+    const link = document.getElementById('manualPhotoLink');
+    msg.textContent = 'Compression...';
     try{
       pendingPhotoDataUrl = await compressImageFile(file);
-      document.getElementById('manualPreviewWrap').innerHTML = `<img src="${pendingPhotoDataUrl}" class="manual-preview" alt="Aperçu">`;
+      thumb.src = pendingPhotoDataUrl;
+      thumb.hidden = false;
+      msg.textContent = 'Photo ajoutée.';
+      link.textContent = 'Changer';
     }catch(err){
       console.error('Image compression error:', err);
-      document.getElementById('manualPreviewWrap').innerHTML = '<p class="photo-status">Impossible de lire cette image, réessaie avec une autre.</p>';
       pendingPhotoDataUrl = null;
+      thumb.hidden = true;
+      msg.textContent = 'Image illisible, essaie-en une autre.';
+      link.textContent = 'Ajouter une photo';
     }
-  });
-
-  document.getElementById('confirmManualBtn').addEventListener('click', async () => {
-    if(!pendingStar) return;
-    await saveStar({ ...pendingStar, photoUrl: pendingPhotoDataUrl });
-    const name = pendingStar.fullName;
-    pendingStar = null; pendingPhotoDataUrl = null;
-    resetForm();
-    closeAddModal();
-    showToast(`${name} a rejoint le Pokédex`);
-  });
-  document.getElementById('cancelManualBtn').addEventListener('click', () => {
-    pendingStar = null; pendingPhotoDataUrl = null;
-    hideManualZone();
   });
 
   // ---------- suggestions de stars (Wikipédia + filtre Wikidata « être humain ») ----------
